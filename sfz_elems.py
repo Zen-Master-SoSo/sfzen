@@ -69,21 +69,21 @@ class _Header(_SFZElem):
 		self._subheadings = []
 		self._opcodes = {}
 
-	def _may_contain(self, header):
+	def may_contain(self, header):
 		"""
 		This function is used to determine if a header being parsed is a child of the
 		last previous header, or the start of an entirely new header group.
 		"""
 		return False
 
-	def _append_opcode(self, opcode):
+	def append_opcode(self, opcode):
 		"""
 		Function used during parsing.
 		"""
 		self._opcodes[opcode.name] = opcode
 		opcode.parent = self
 
-	def _append_subheader(self, subheading):
+	def append_subheader(self, subheading):
 		"""
 		Function used during parsing.
 		"""
@@ -168,25 +168,25 @@ class _Modifier(_SFZElem):
 
 class Global(_Header):
 
-	def _may_contain(self, header):
+	def may_contain(self, header):
 		return True
 
 
 class Master(_Header):
 
-	def _may_contain(self, header):
+	def may_contain(self, header):
 		return type(header) not in [Global, Master]
 
 
 class Group(_Header):
 
-	def _may_contain(self, header):
+	def may_contain(self, header):
 		return type(header) not in [Global, Master, Group]
 
 
 class Region(_Header):
 
-	def _may_contain(self, header):
+	def may_contain(self, header):
 		return type(header) not in [Global, Master, Group, Region]
 
 	def is_triggerd_by(self, lokey=None, hikey=None, lovel=None, hivel=None):

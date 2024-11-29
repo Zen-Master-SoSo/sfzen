@@ -1,4 +1,4 @@
-#  sfzen/utils/sfzen_opcodes.py
+#  sfzen/list_opcodes.py
 #
 #  Copyright 2024 liyang <liyang@veronica>
 #
@@ -45,4 +45,4 @@ if __name__ == "__main__":
 	main()
 
 
-#  end sfzen/utils/sfzen_opcodes.py
+#  end sfzen/list_opcodes.py

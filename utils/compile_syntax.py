@@ -6,14 +6,18 @@ import os, logging, yaml, importlib
 from numbers import Real
 from pretty_repr import Repr
 
-def inspect(obj):
-	print(type(obj).__name__)
-	for k in dir(obj):
-		if k[0] != '_':
-			print(k, ':', type(getattr(obj, k)).__name__)
-	print()
+VERSION_MAP = {
+	None				: 'unknown',
+	'SFZ v1'			: 'v1',
+	'SFZ v2'			: 'v2',
+	'ARIA'				: 'aria',
+	'LinuxSampler'		: 'linuxsampler',
+	'Cakewalk'			: 'cakewalk',
+	'Cakewalk SFZ v2'	: 'cakewalk_v2',  # unimplementd by any player
+}
 
 def compile_syntax(yaml_file, target_file):
+	print(f'Reading {yaml_file}...')
 	with open(yaml_file) as ymlfile:
 		syntax = yaml.load(ymlfile, Loader=yaml.SafeLoader)
 	with open(target_file, 'w') as pyfile:
@@ -22,37 +26,39 @@ def compile_syntax(yaml_file, target_file):
 	print(f'Wrote "{target_file}"')
 
 def compile_opcodes(syntax_file, target_file):
-	module = importlib.import_module('sfzen.syntax')
-	opcodes = { opcode['name']: opcode for opcode in _extract_opcodes(module.SYNTAX['categories']) }
+	with open(syntax_file) as syntaxfile:
+		SYNTAX = eval(syntaxfile.read()[9:])
+	opcodes = {
+		opcode['name']: opcode \
+		for opcode in extract_opcodes(SYNTAX['categories'])
+	}
 	with open(target_file, 'w') as pyfile:
 		pyfile.write('OPCODES = ')
 		Repr(opcodes).write(pyfile)
 	print(f'Wrote "{target_file}"')
-	module = importlib.import_module('sfzen.opcodes')
-	print(f'Successfully imported sfzen.opcodes')
 
-def _extract_opcodes(categories):
+def extract_opcodes(categories):
 	for category in categories:
 		opcodes = category.get('opcodes')
 		if opcodes:
-			yield from _iter_opcodes(opcodes, category['name'])
+			yield from iter_opcodes(opcodes, category['name'])
 		types = category.get('types')
 		if types:
-			yield from _extract_opcodes(types)
+			yield from extract_opcodes(types)
 
-def _iter_opcodes(opcodes, category):
+def iter_opcodes(opcodes, category):
 	for opcode in opcodes:
-		yield from _opcode_validator(opcode, category, None, None)
+		yield from opcode_validator(opcode, category, None, None)
 
-def _opcode_validator(opcode, category, op_name, mod_type):
+def opcode_validator(opcode, category, op_name, mod_type):
 	opcode_meta = {
 		'name'		: opcode['name'],
-		'ver'		: _ver_code(opcode.get('version', 'unknown')),
+		'ver'		: version_code(opcode.get('version', 'unknown')),
 		'category'	: category,
 		'modulates'	: op_name,
 		'mod_type'	: mod_type
 	}
-	_extract_vdr_meta(opcode, opcode_meta)
+	extract_vdr_meta(opcode, opcode_meta)
 	yield opcode_meta
 	for alias in opcode.get('alias', []):
 		alias_meta = {
@@ -60,7 +66,7 @@ def _opcode_validator(opcode, category, op_name, mod_type):
 			'value': {'valid': "Alias(" + repr(opcode['name']) + ")"},
 		}
 		if 'version' in alias:
-			alias_meta['ver'] = _ver_mapping[alias['version']]
+			alias_meta['ver'] = VERSION_MAP[alias['version']]
 		else:
 			alias_meta['ver'] = opcode_meta['ver']
 		yield alias_meta
@@ -75,20 +81,18 @@ def _opcode_validator(opcode, category, op_name, mod_type):
 			opcode['modulation'].items(),
 			opcode['name'])
 
-
 def extract_modulation(category, items, op_name):
 	for mod_type, modulations in items:
 		if isinstance(modulations, list):  # some are just checkmarks
 			for mod in modulations:
-				yield from _opcode_validator(mod, category, op_name, mod_type)
+				yield from opcode_validator(mod, category, op_name, mod_type)
 
-
-def _extract_vdr_meta(opcode, opcode_meta):
+def extract_vdr_meta(opcode, opcode_meta):
 	for key in ('value', 'index'):
 		if key in opcode:
 			if key not in opcode_meta:
 				opcode_meta[key] = {}
-			opcode_meta[key]['valid'] = _validator(opcode[key])
+			opcode_meta[key]['valid'] = validator(opcode[key])
 			type_name = opcode[key].get('type_name')
 			if type_name:
 				opcode_meta[key]['type'] = type_name
@@ -96,7 +100,7 @@ def _extract_vdr_meta(opcode, opcode_meta):
 			if unit:
 				opcode_meta[key]['unit'] = unit
 
-def _validator(data_value):
+def validator(data_value):
 	if 'min' in data_value:
 		if 'max' in data_value:
 			if not isinstance(data_value['max'], Real):
@@ -108,19 +112,8 @@ def _validator(data_value):
 		return "Choice(" + repr([o['name'] for o in data_value['options']]) + ")"
 	return "Any()"
 
-
-_ver_mapping = {
-	None				: 'unknown',
-	'SFZ v1'			: 'v1',
-	'SFZ v2'			: 'v2',
-	'ARIA'				: 'aria',
-	'LinuxSampler'		: 'linuxsampler',
-	'Cakewalk'			: 'cakewalk',
-	'Cakewalk SFZ v2'	: 'cakewalk_v2',  # unimplementd by any player
-}
-
-def _ver_code(version):
-	return _ver_mapping.get(version, version.lower())
+def version_code(version):
+	return VERSION_MAP.get(version, version.lower())
 
 if __name__ == "__main__":
 	app_dir = os.path.dirname(os.path.dirname(__file__))
@@ -131,5 +124,9 @@ if __name__ == "__main__":
 		compile_syntax(yaml_file, syntax_file)
 	if not os.path.exists(opcodes_file):
 		compile_opcodes(syntax_file, opcodes_file)
+	module = importlib.import_module('sfzen.syntax')
+	print('Successfully imported sfzen.syntax')
+	module = importlib.import_module('sfzen.opcodes')
+	print('Successfully imported sfzen.opcodes')
 
 #  end sfzen/utils/compile_syntax.py

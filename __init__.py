@@ -3,12 +3,11 @@
 #  Copyright 2024 liyang <liyang@veronica>
 #
 import os, logging, re
-from appdirs import user_cache_dir
-from functools import reduce
 from operator import or_
+from functools import reduce
+from appdirs import user_cache_dir
 from lark import Lark, Transformer, v_args
 from lark.tree import Meta
-from sfzen.opcodes import OPCODES
 from sfzen.sfz_elems import (
 	_SFZElem,
 	_Header,
@@ -60,9 +59,9 @@ class SFZXformer(Transformer):
 			header = Master(toks, meta)
 		elif toks[0].value == 'midi':
 			header = Midi(toks, meta)
-		while not self.current_header._may_contain(header):
+		while not self.current_header.may_contain(header):
 			self.current_header = self.current_header.parent
-		self.current_header._append_subheader(header)
+		self.current_header.append_subheader(header)
 		self.current_header = header
 
 	@v_args(meta=True)
@@ -83,19 +82,20 @@ class SFZXformer(Transformer):
 		self.sfz.includes.append(include)
 		path = os.path.join(os.path.dirname(self.sfz.filename), include.path)
 		if os.path.exists(path):
-			logging.debug(f'Including "{path}"')
+			logging.debug('Including "%s"' % path)
 			try:
-				subsfz = SFZ(path)
+				subsfz = SFZ(path, defines=self.sfz.defines)
 				for header in subsfz.subheaders:
-					while not self.current_header._may_contain(header):
+					while not self.current_header.may_contain(header):
 						self.current_header = self.current_header.parent
-					self.current_header._append_subheader(header)
+					self.current_header.append_subheader(header)
 					self.current_header = header
-				self.sfz.defines = dict(self.sfz.defines, **subsfz.defines)
+				self.sfz.defines = subsfz.defines
 				self.sfz.includes.extend(subsfz.includes)
 			except Exception as e:
-				logging.error(f'Failed to include "{path}"')
-				logging.error('%s: %s' % (type(e).__name__, str(e))),
+				logging.error('Failed to include "%s"; %s: %s' %
+					(path, type(e).__name__, str(e)))
+
 
 	@v_args(meta=True)
 	def opcode_exp(self, arg1, arg2):
@@ -113,7 +113,7 @@ class SFZXformer(Transformer):
 				else:
 					logging.error('Invalid opcode inside velocity curve definition')
 		else:
-			self.current_header._append_opcode(Opcode(
+			self.current_header.append_opcode(Opcode(
 				self.replace_defs(toks[0].value),
 				self.replace_defs(toks[1].value),
 				meta))
@@ -123,7 +123,6 @@ class SFZXformer(Transformer):
 		"""
 		Transformer function which handles the root of the sfz.
 		"""
-		pass
 
 	def wonky_lark_args(self, arg1, arg2):
 		"""
@@ -133,8 +132,7 @@ class SFZXformer(Transformer):
 		"""
 		if isinstance(arg1, Meta):
 			return arg1, arg2
-		else:
-			return arg2, arg1
+		return arg2, arg1
 
 	def replace_defs(self, var):
 		"""
@@ -143,6 +141,9 @@ class SFZXformer(Transformer):
 		return re.sub(r'\$(\w+)', lambda v: self.sfz.defines[v.group(1)].value, var)
 
 	def unquote(self, var):
+		"""
+		Remove quotes around a parsed value.
+		"""
 		for q in ["'", '"']:
 			if var[0] == q and var[-1] == q:
 				return var[1:-1]
@@ -156,10 +157,16 @@ class SFZ(_Header):
 
 	_parser = None
 
-	def __init__(self, filename = None):
+	def __init__(self, filename = None, defines = {}):
+		"""
+		filename: (str) Path to an .sfz file.
+
+		Passing "defines" allows us to construct an SFZ which is an import, and use the
+		defined variables from the parent SFZ.
+		"""
 		self.filename = filename
 		self._parent = None
-		self.defines = {}
+		self.defines = defines
 		self.includes = []
 		self._subheadings = []
 		if filename is not None:
@@ -172,13 +179,13 @@ class SFZ(_Header):
 			xformer = SFZXformer(self)
 			xformer.transform(tree)
 
-	def _may_contain(self, header):
+	def may_contain(self, header):
 		return True
 
-	def _append_opcode(self, opcode):
-		raise Exception("Opcode outside of header")
+	def append_opcode(self, opcode):
+		raise RuntimeError("Opcode outside of header")
 
-	def _append_subheader(self, subheading):
+	def append_subheader(self, subheading):
 		self._subheadings.append(subheading)
 		subheading.parent = self
 
@@ -229,7 +236,7 @@ class SFZ(_Header):
 	def _dump(self, obj, indent):
 		print('  ' * indent, end="")
 		print(repr(obj))
-		if isinstance(obj, _Header) or isinstance(obj, SFZ):
+		if isinstance(obj, (_Header, SFZ)):
 			for sub in obj.subheaders:
 				self._dump(sub, indent + 1)
 
