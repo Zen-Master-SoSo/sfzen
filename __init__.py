@@ -8,6 +8,7 @@ from functools import reduce
 from appdirs import user_cache_dir
 from lark import Lark, Transformer, v_args
 from lark.tree import Meta
+from good_logging import log_error
 from sfzen.sfz_elems import (
 	_SFZElem,
 	_Header,
@@ -93,8 +94,7 @@ class SFZXformer(Transformer):
 				self.sfz.defines = subsfz.defines
 				self.sfz.includes.extend(subsfz.includes)
 			except Exception as e:
-				logging.error('Failed to include "%s"; %s: %s' %
-					(path, type(e).__name__, str(e)))
+				log_error(e)
 
 
 	@v_args(meta=True)
