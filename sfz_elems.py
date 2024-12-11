@@ -15,16 +15,16 @@ from lark import Lark, Transformer, v_args
 from sfzen.opcodes import OPCODES
 
 
-class _SFZElem:
+class _SFZElement:
 
 	_ordinals = {}
 
 	def __init__(self, meta):
 		typ = type(self).__name__
-		if typ not in _SFZElem._ordinals:
-			_SFZElem._ordinals[typ] = 1
-		self._idx = _SFZElem._ordinals[typ]
-		_SFZElem._ordinals[typ] += 1
+		if typ not in _SFZElement._ordinals:
+			_SFZElement._ordinals[typ] = 1
+		self._idx = _SFZElement._ordinals[typ]
+		_SFZElement._ordinals[typ] += 1
 		self.line = meta.line
 		self.column = meta.column
 		self.end_line = meta.end_line
@@ -57,7 +57,7 @@ class _SFZElem:
 		return elem
 
 
-class _Header(_SFZElem):
+class _Header(_SFZElement):
 	"""
 	The _Header class is an abstract class which handles the functions common to
 	all SFZ header types. Each header type basically acts the same, except for
@@ -162,7 +162,7 @@ class _Header(_SFZElem):
 				sub.write(stream)
 
 
-class _Modifier(_SFZElem):
+class _Modifier(_SFZElement):
 	pass
 
 
@@ -272,7 +272,7 @@ class Curve(_Header):
 			stream.write('%s=%s\n' % vals)
 
 
-class Opcode(_SFZElem):
+class Opcode(_SFZElement):
 
 	def __init__(self, name, value, meta):
 		super().__init__(meta)

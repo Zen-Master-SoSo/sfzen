@@ -10,7 +10,7 @@ from lark import Lark, Transformer, v_args
 from lark.tree import Meta
 from good_logging import log_error
 from sfzen.sfz_elems import (
-	_SFZElem,
+	_SFZElement,
 	_Header,
 	_Modifier,
 	Global,
@@ -203,7 +203,7 @@ class SFZ(_Header):
 
 	def opcodes_used(self):
 		"""
-		Returns a set of the keys of all the opcodes used in this _Header.
+		Returns a set of the keys of all the opcodes used in this SFZ.
 		"""
 		return reduce(or_, [heading.opcodes_used() for heading in self._subheadings])
 
