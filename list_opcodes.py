@@ -5,15 +5,18 @@
 """
 Utility which lists all opcodes declared in one or many .sfz files
 """
-import os, sys, logging, argparse, glob
-from sfzen import SFZ
+import os, logging, argparse, glob
 from progress.bar import IncrementalBar
+from sfzen import SFZ
 
 
 def main():
+	"""
+	Entry point, defined so as to make it easy to reference from bin script.
+	"""
 	parser = argparse.ArgumentParser()
 	parser.epilog = """
-	Write your help text!
+	List all the opcodes used by the given SFZ[s].
 	"""
 	parser.add_argument('Filename', type=str, nargs='+',
 		help='File or directory to inspect.')
@@ -34,10 +37,10 @@ def main():
 		elif os.path.isfile(path):
 			file_list = [path]
 	opcodes = set()
-	with IncrementalBar('Reading .sfz', max=len(file_list)) as bar:
+	with IncrementalBar('Reading .sfz', max=len(file_list)) as progress_bar:
 		for filename in file_list:
 			opcodes |= SFZ(filename).opcodes_used()
-			bar.next()
+			progress_bar.next()
 	print("\n".join(sorted(opcodes)))
 
 

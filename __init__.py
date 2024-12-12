@@ -22,11 +22,12 @@ from sfzen.sfz_elems import (
 	Midi,
 	Curve,
 	Opcode,
+	Sample,
 	Define,
 	Include
 )
 
-COMMENT_DIVIDER = '// ' + '-' * 40 + "\n"
+COMMENT_DIVIDER = '// ' + '-' * 76 + "\n"
 
 
 class SFZXformer(Transformer):
@@ -81,9 +82,9 @@ class SFZXformer(Transformer):
 		meta, toks = self.wonky_lark_args(arg1, arg2)
 		include = Include(self.unquote(self.replace_defs(toks[0].value)), meta)
 		self.sfz.includes.append(include)
-		path = os.path.join(os.path.dirname(self.sfz.filename), include.path)
+		path = os.path.join(os.path.dirname(self.sfz.filename), include.filename)
 		if os.path.exists(path):
-			logging.debug('Including "%s"' % path)
+			logging.debug('Including "%s"', path)
 			try:
 				subsfz = SFZ(path, defines=self.sfz.defines)
 				for header in subsfz.subheaders:
@@ -113,10 +114,14 @@ class SFZXformer(Transformer):
 				else:
 					logging.error('Invalid opcode inside velocity curve definition')
 		else:
-			self.current_header.append_opcode(Opcode(
-				self.replace_defs(toks[0].value),
-				self.replace_defs(toks[1].value),
-				meta))
+			opname = self.replace_defs(toks[0].value.lower())
+			if opname == 'sample':
+				self.current_header.append_opcode(Sample(
+					opname, self.replace_defs(toks[1].value),
+					meta, self.sfz.filename))
+			else:
+				self.current_header.append_opcode(Opcode(
+					opname, self.replace_defs(toks[1].value), meta))
 
 	@v_args(meta=True)
 	def start(self, arg1, arg2):
@@ -200,6 +205,13 @@ class SFZ(_Header):
 		Returns a list of headers which are immediate children of this SFZ.
 		"""
 		return self._subheadings
+
+	def samples(self):
+		"""
+		Generator which yields a Sample on each iteraration.
+		"""
+		for header in self._subheadings:
+			yield from header.samples()
 
 	def opcodes_used(self):
 		"""

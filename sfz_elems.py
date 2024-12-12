@@ -6,16 +6,21 @@
 Classes which are instantiated when parsing an .sfz file.
 All of these classes are constructed from a lark parser tree Token.
 """
-import os, logging, re
+import logging
+import re
+from os import path, symlink, link
+from shutil import copy2 as copy
 from functools import cached_property
 from functools import reduce
 from operator import or_
-from appdirs import user_cache_dir
-from lark import Lark, Transformer, v_args
 from sfzen.opcodes import OPCODES
 
 
 class _SFZElement:
+	"""
+	An abstract class which provides parent/child hierarchical relationship.
+	This is the base class of all Headers and Opcodes.
+	"""
 
 	_ordinals = {}
 
@@ -47,21 +52,12 @@ class _SFZElement:
 	def parent(self, parent):
 		self._parent = parent
 
-	def sfz(self):
-		"""
-		Returns the parent SFZ which contains this element.
-		"""
-		elem = self
-		while not isinstance(elem, SFZ):
-			elem = elem.parent
-		return elem
-
 
 class _Header(_SFZElement):
 	"""
-	The _Header class is an abstract class which handles the functions common to
-	all SFZ header types. Each header type basically acts the same, except for
-	checking what kind of subheader it may contain.
+	An abstract class which handles the functions common to all SFZ header types.
+	Each header type basically acts the same, except for checking what kind of
+	subheader it may contain.
 	"""
 
 	def __init__(self, toks, meta):
@@ -132,6 +128,15 @@ class _Header(_SFZElement):
 		"""
 		return self._opcodes
 
+	def samples(self):
+		"""
+		Generator which yields a Sample on each iteraration.
+		"""
+		if 'sample' in self._opcodes:
+			yield self._opcodes['sample']
+		for header in self._subheadings:
+			yield from header.samples()
+
 	@property
 	def subheadings(self):
 		"""
@@ -140,7 +145,8 @@ class _Header(_SFZElement):
 		return self._subheadings
 
 	def __repr__(self):
-		return '%-4d| %s #%s (%d opcodes)' % (self.line, type(self).__name__, self._idx, len(self._opcodes))
+		return '%-4d| %s #%s (%d opcodes)' % (
+			self.line, type(self).__name__, self._idx, len(self._opcodes))
 
 	def __str__(self):
 		return '<%s>' % type(self).__name__.lower()
@@ -167,24 +173,36 @@ class _Modifier(_SFZElement):
 
 
 class Global(_Header):
+	"""
+	Represents an SFZ Global header. Created by Lark transformer when importing SFZ.
+	"""
 
 	def may_contain(self, header):
 		return True
 
 
 class Master(_Header):
+	"""
+	Represents an SFZ Master header. Created by Lark transformer when importing SFZ.
+	"""
 
 	def may_contain(self, header):
 		return type(header) not in [Global, Master]
 
 
 class Group(_Header):
+	"""
+	Represents an SFZ Group header. Created by Lark transformer when importing SFZ.
+	"""
 
 	def may_contain(self, header):
 		return type(header) not in [Global, Master, Group]
 
 
 class Region(_Header):
+	"""
+	Represents an SFZ Region header. Created by Lark transformer when importing SFZ.
+	"""
 
 	def may_contain(self, header):
 		return type(header) not in [Global, Master, Group, Region]
@@ -232,25 +250,33 @@ class Region(_Header):
 	@property
 	def sample(self):
 		"""
-		Returns the parsed value of the "sample" opcode contained in this region, if
-		one exists.
+		Returns the value of the "sample" opcode in this region, if one exists.
 		"""
-		return self.opcodes['sample']._parsed_value if 'sample' in self.opcodes else None
+		return self.opcodes['sample'].abspath if 'sample' in self.opcodes else None
 
 
 class Control(_Header):
-	pass
+	"""
+	Represents an SFZ Control header. Created by Lark transformer when importing SFZ.
+	"""
 
 
 class Effect(_Header):
-	pass
+	"""
+	Represents an SFZ Effect header. Created by Lark transformer when importing SFZ.
+	"""
 
 
 class Midi(_Header):
-	pass
+	"""
+	Represents an SFZ MIDI header. Created by Lark transformer when importing SFZ.
+	"""
 
 
 class Curve(_Header):
+	"""
+	Represents an SFZ curve. Created by Lark transformer when importing SFZ.
+	"""
 
 	curve_index = None
 	points = {}
@@ -273,6 +299,9 @@ class Curve(_Header):
 
 
 class Opcode(_SFZElement):
+	"""
+	Represents an SFZ opcode. Created by Lark transformer when importing SFZ.
+	"""
 
 	def __init__(self, name, value, meta):
 		super().__init__(meta)
@@ -286,7 +315,7 @@ class Opcode(_SFZElement):
 		"""
 		if self.type == 'float':
 			return float(self._parsed_value)
-		elif self.type == 'integer':
+		if self.type == 'integer':
 			return int(self._parsed_value)
 		return self._parsed_value
 
@@ -359,10 +388,12 @@ class Opcode(_SFZElement):
 				if sub != name:
 					# Recurse for opcodes like "eq3_gain_oncc12"
 					return OPCODES[sub] if sub in OPCODES else self._get_opcode_def(sub)
-		logging.warning('Could not find opcode ' + name)
+		logging.warning('Could not find opcode "%s"', name)
+		return None
 
 	def __repr__(self):
-		return '%-4d| opcode #%d: "%s" = %s' % (self.line, self._idx, self.name, repr(self.value))
+		return '%-4d| opcode #%d: "%s" = %s' % (
+			self.line, self._idx, self.name, repr(self.value))
 
 	def __str__(self):
 		return '%s=%s' % (self.name, self._parsed_value)
@@ -375,7 +406,93 @@ class Opcode(_SFZElement):
 		stream.write(str(self) + "\n")
 
 
+class Sample(Opcode):
+	"""
+	Unique case Opcode with extra functions for path manipulation.
+	"""
+
+	RE_PATH_DIVIDER = '[\\\/]'
+
+	def __init__(self, name, value, meta, sfz_filename):
+		super().__init__(name, value, meta)
+		self.path = value
+		self.sfz_filename = sfz_filename
+
+	@cached_property
+	def path_parts(self):
+		"""
+		Splits the directory / filenames of the parsed value of this opcode
+		Returns list of str
+		"""
+		return re.split(self.RE_PATH_DIVIDER, self._parsed_value)
+
+	@cached_property
+	def abspath(self):
+		"""
+		Returns (str) the absolute path to the sample
+		"""
+		return path.join(path.dirname(self.sfz_filename), *self.path_parts)
+
+	@cached_property
+	def basename(self):
+		"""
+		Returns (str) the basename of the sample
+		"""
+		return self.path_parts[-1]
+
+	def use_abspath(self):
+		"""
+		Directs this Sample to use an absolute path when writing .sfz
+		"""
+		self.path = self.abspath
+
+	def resolve_from(self, target_dir):
+		"""
+		Directs this Sample to use a relative path when writing .sfz.
+		"target_dir" is the directory of the .sfz file to be written.
+		"""
+		self.path = path.relpath(self.abspath, path.join(target_dir, self.basename))
+
+	def copy_to(self, target_dir):
+		"""
+		Copies the source sample to a new location.
+		Sets the value to be rendered to point to the new location relative to the .sfz
+		file to be written.
+		"""
+		copy(self.abspath, self._fix_to_samples_dir(target_dir))
+
+	def symlink_to(self, target_dir):
+		"""
+		Symlinks the source sample to a new location.
+		Sets the value to be rendered to point to the new location relative to the .sfz
+		file to be written.
+		"""
+		symlink(self.abspath, self._fix_to_samples_dir(target_dir))
+
+	def hardlink_to(self, target_dir):
+		"""
+		Hard links the source sample to a new location.
+		Sets the value to be rendered to point to the new location relative to the .sfz
+		file to be written.
+		"""
+		link(self.abspath, self._fix_to_samples_dir(target_dir))
+
+	def _fix_to_samples_dir(self, target_dir):
+		"""
+		Sets the "value" of this opcode to "samples/<basename>"
+		Returns the absolute path of the target sample relative to the sfz file to create.
+		"""
+		self.path = path.join('samples', self.basename)
+		return path.join(target_dir, self.basename)
+
+	def __str__(self):
+		return 'sample=%s' % self.path
+
+
 class Define(_Modifier):
+	"""
+	Represents a Define Opcode. Created by Lark transformer when importing SFZ.
+	"""
 
 	def __init__(self, varname, value, meta):
 		super().__init__(meta)
@@ -387,13 +504,16 @@ class Define(_Modifier):
 
 
 class Include(_Modifier):
+	"""
+	Represents an Include Opcode. Created by Lark transformer when importing SFZ.
+	"""
 
-	def __init__(self, path, meta):
+	def __init__(self, filename, meta):
 		super().__init__(meta)
-		self.path = path
+		self.filename = filename
 
 	def __repr__(self):
-		return '%-4d| include #%d: %s' % (self.line, self._idx, self.path)
+		return '%-4d| include #%d: %s' % (self.line, self._idx, self.filename)
 
 
 #  end sfzen/sfz_elems.py
