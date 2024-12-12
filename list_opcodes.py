@@ -8,6 +8,7 @@ Utility which lists all opcodes declared in one or many .sfz files
 import os, logging, argparse, glob
 from progress.bar import IncrementalBar
 from sfzen import SFZ
+from sfzen import name_sorted
 
 
 def main():
@@ -41,7 +42,7 @@ def main():
 		for filename in file_list:
 			opcodes |= SFZ(filename).opcodes_used()
 			progress_bar.next()
-	print("\n".join(sorted(opcodes)))
+	print("\n".join(name_sorted(opcodes)))
 
 
 if __name__ == "__main__":

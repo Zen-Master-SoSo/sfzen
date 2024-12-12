@@ -13,6 +13,7 @@ from shutil import copy2 as copy
 from functools import cached_property
 from functools import reduce
 from operator import or_
+from sfzen.sort import opcode_sorted
 from sfzen.opcodes import OPCODES
 
 
@@ -160,7 +161,7 @@ class _Header(_SFZElement):
 		stream.write(str(self) + "\n")
 		opcodes = self._opcodes.values()
 		if opcodes:
-			for op in self._opcodes.values():
+			for op in opcode_sorted(opcodes):
 				op.write(stream)
 			stream.write("\n")
 		if self._subheadings:
@@ -227,7 +228,7 @@ class Region(_Header):
 		return True
 
 	@cached_property
-	def opstrs(self):
+	def opstrings(self):
 		"""
 		Returns a set of all the string representation (including name and value) of
 		all the opcodes which are used by this Region.
@@ -237,7 +238,7 @@ class Region(_Header):
 		"""
 		return set(str(opcode) for opcode in self._opcodes.values())
 
-	def uses_opstr(self, opstr):
+	def uses_opstring(self, opstring):
 		"""
 		Returns True if the given string representation (including name and value) of
 		an opcode is used by this Region. Checks opcodes defined in this Region as well
@@ -245,7 +246,7 @@ class Region(_Header):
 		groups.
 		Note that opcode name AND value must match.
 		"""
-		return opstr in self.opstrs
+		return opstring in self.opstrings
 
 	@property
 	def sample(self):
