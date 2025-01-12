@@ -2,6 +2,9 @@
 #
 #  Copyright 2024 liyang <liyang@veronica>
 #
+"""
+Simple object-oriented SFZ parsing and manipulation.
+"""
 import os, logging, re
 from operator import or_
 from functools import reduce
@@ -87,7 +90,7 @@ class SFZXformer(Transformer):
 			logging.debug('Including "%s"', path)
 			try:
 				subsfz = SFZ(path, defines=self.sfz.defines)
-				for header in subsfz.subheaders:
+				for header in subsfz.subheadings:
 					while not self.current_header.may_contain(header):
 						self.current_header = self.current_header.parent
 					self.current_header.append_subheader(header)
@@ -208,7 +211,7 @@ class SFZ(_Header):
 
 	def samples(self):
 		"""
-		Generator which yields a Sample on each iteraration.
+		Generator which yields a Sample object on each iteraration.
 		"""
 		for header in self._subheadings:
 			yield from header.samples()
@@ -249,7 +252,7 @@ class SFZ(_Header):
 		print('  ' * indent, end="")
 		print(repr(obj))
 		if isinstance(obj, (_Header, SFZ)):
-			for sub in obj.subheaders:
+			for sub in obj.subheadings:
 				self._dump(sub, indent + 1)
 
 

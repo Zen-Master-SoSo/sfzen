@@ -248,10 +248,15 @@ class Region(_Header):
 		"""
 		return opstring in self.opstrings
 
-	@property
 	def sample(self):
 		"""
-		Returns the value of the "sample" opcode in this region, if one exists.
+		Returns the "sample" opcode in this region, if one exists.
+		"""
+		return self.opcodes['sample'] if 'sample' in self.opcodes else None
+
+	def sample_path(self):
+		"""
+		Returns the abspath of the "sample" opcode in this region, if one exists.
 		"""
 		return self.opcodes['sample'].abspath if 'sample' in self.opcodes else None
 
@@ -440,6 +445,12 @@ class Sample(Opcode):
 		Returns (str) the basename of the sample
 		"""
 		return self.path_parts[-1]
+
+	def exists(self):
+		"""
+		Returns boolean True if file exists
+		"""
+		return path.exists(self.abspath)
 
 	def use_abspath(self):
 		"""
