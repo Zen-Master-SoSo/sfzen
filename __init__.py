@@ -75,7 +75,10 @@ class SFZXformer(Transformer):
 		Transformer function which handles <define> tokens.
 		"""
 		meta, toks = self.wonky_lark_args(arg1, arg2)
-		self.sfz.defines[toks[0].value] = Define(toks[0].value, toks[1].value, meta)
+		try:
+			self.sfz.defines[toks[0].value] = Define(toks[0].value, toks[1].value, meta)
+		except Exception as e:
+			self.sfz.append_parse_error(e, meta)
 
 	@v_args(meta=True)
 	def include_macro(self, arg1, arg2):
@@ -83,23 +86,27 @@ class SFZXformer(Transformer):
 		Transformer function which handles <include> tokens.
 		"""
 		meta, toks = self.wonky_lark_args(arg1, arg2)
-		include = Include(self.unquote(self.replace_defs(toks[0].value)), meta)
-		self.sfz.includes.append(include)
-		path = os.path.join(os.path.dirname(self.sfz.filename), include.filename)
-		if os.path.exists(path):
-			logging.debug('Including "%s"', path)
-			try:
-				subsfz = SFZ(path, defines=self.sfz.defines)
-				for header in subsfz.subheadings:
-					while not self.current_header.may_contain(header):
-						self.current_header = self.current_header.parent
-					self.current_header.append_subheader(header)
-					self.current_header = header
-				self.sfz.defines = subsfz.defines
-				self.sfz.includes.extend(subsfz.includes)
-			except Exception as e:
-				log_error(e)
-
+		try:
+			include = Include(self.unquote(self.replace_defs(toks[0].value)), meta)
+			self.sfz.includes.append(include)
+			path = os.path.join(os.path.dirname(self.sfz.filename), include.filename)
+			if os.path.exists(path):
+				logging.debug('Including "%s"', path)
+				try:
+					subsfz = SFZ(path, defines = self.sfz.defines, basedir = self.sfz.basedir, is_include = True)
+					for header in subsfz.subheadings:
+						while not self.current_header.may_contain(header):
+							self.current_header = self.current_header.parent
+						self.current_header.append_subheader(header)
+						self.current_header = header
+					self.sfz.defines = subsfz.defines
+					self.sfz.includes.extend(subsfz.includes)
+				except Exception as e:
+					log_error(e)
+			else:
+				raise ValueError('Include not found: %s' % path)
+		except Exception as e:
+			self.sfz.append_parse_error(e, meta)
 
 	@v_args(meta=True)
 	def opcode_exp(self, arg1, arg2):
@@ -107,24 +114,27 @@ class SFZXformer(Transformer):
 		Transformer function which handles <opcode> tokens.
 		"""
 		meta, toks = self.wonky_lark_args(arg1, arg2)
-		if isinstance(self.current_header, Curve):
-			if toks[0] == 'curve_index':
-				self.current_header.curve_index = toks[1].value
-			else:
-				match = re.match(r'v(\d+)', toks[0].value)
-				if match:
-					self.current_header.points[toks[0].value] = toks[1].value
+		try:
+			if isinstance(self.current_header, Curve):
+				if toks[0] == 'curve_index':
+					self.current_header.curve_index = toks[1].value
 				else:
-					logging.error('Invalid opcode inside velocity curve definition')
-		else:
-			opname = self.replace_defs(toks[0].value.lower())
-			if opname == 'sample':
-				self.current_header.append_opcode(Sample(
-					opname, self.replace_defs(toks[1].value),
-					meta, self.sfz.filename))
+					match = re.match(r'v(\d+)', toks[0].value)
+					if match:
+						self.current_header.points[toks[0].value] = toks[1].value
+					else:
+						logging.error('Invalid opcode inside velocity curve definition')
 			else:
-				self.current_header.append_opcode(Opcode(
-					opname, self.replace_defs(toks[1].value), meta))
+				opname = self.replace_defs(toks[0].value.lower())
+				if opname == 'sample':
+					self.current_header.append_opcode(Sample(
+						opname, self.replace_defs(toks[1].value),
+						meta, self.sfz.basedir))
+				else:
+					self.current_header.append_opcode(Opcode(
+						opname, self.replace_defs(toks[1].value), meta))
+		except Exception as e:
+			self.sfz.append_parse_error(e, meta)
 
 	@v_args(meta=True)
 	def start(self, arg1, arg2):
@@ -165,19 +175,28 @@ class SFZ(_Header):
 
 	_parser = None
 
-	def __init__(self, filename = None, defines = {}):
+	def __init__(self, filename = None, defines = {}, basedir = None, is_include = False):
 		"""
 		filename: (str) Path to an .sfz file.
 
 		Passing "defines" allows us to construct an SFZ which is an import, and use the
 		defined variables from the parent SFZ.
+
+		Passing "basedir" allows included SFZ parts to use the directory of their
+		parent when parsing sample paths.
 		"""
 		self.filename = filename
-		self._parent = None
 		self.defines = defines
-		self.includes = []
+		self.is_include = is_include
+		self._parent = None
 		self._subheadings = []
-		if filename is not None:
+		self._opcodes = {}
+		self.includes = []
+		self.parse_errors = []
+		if filename is None:
+			self.basedir = None
+		else:
+			self.basedir = os.path.dirname(self.filename) if basedir is None else basedir
 			if SFZ._parser is None:
 				cache_file = os.path.join(user_cache_dir(), 'sfzen')
 				grammar = os.path.join(os.path.dirname(__file__), 'res', 'sfz.lark')
@@ -191,11 +210,25 @@ class SFZ(_Header):
 		return True
 
 	def append_opcode(self, opcode):
-		raise RuntimeError("Opcode outside of header")
+		if not self.is_include:
+			raise RuntimeError("Opcode outside of header")
+		super().append_opcode(opcode)
 
 	def append_subheader(self, subheading):
 		self._subheadings.append(subheading)
 		subheading.parent = self
+
+	def append_parse_error(self, error, meta):
+		tb = error.__traceback__
+		logging.error('Parse error in %s line %d: %s "%s" in %s, line %s',
+			self.filename,
+			meta.line,
+			type(error).__name__,
+			str(error),
+			os.path.basename(tb.tb_frame.f_code.co_filename),
+			tb.tb_lineno
+		)
+		self.parse_errors.append(error)
 
 	def __repr__(self):
 		return 'SFZ "%s"' % os.path.basename(self.filename)

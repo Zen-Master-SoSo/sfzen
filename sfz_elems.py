@@ -419,10 +419,10 @@ class Sample(Opcode):
 
 	RE_PATH_DIVIDER = '[\\\/]'
 
-	def __init__(self, name, value, meta, sfz_filename):
+	def __init__(self, name, value, meta, basedir):
 		super().__init__(name, value, meta)
 		self.path = value
-		self.sfz_filename = sfz_filename
+		self.basedir = basedir
 
 	@cached_property
 	def path_parts(self):
@@ -437,7 +437,7 @@ class Sample(Opcode):
 		"""
 		Returns (str) the absolute path to the sample
 		"""
-		return path.join(path.dirname(self.sfz_filename), *self.path_parts)
+		return path.abspath(path.join(self.basedir, *self.path_parts))
 
 	@cached_property
 	def basename(self):
