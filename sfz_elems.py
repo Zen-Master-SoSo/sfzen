@@ -352,8 +352,8 @@ class Opcode(_SFZElement):
 
 	def _def_value(self, key):
 		"""
-		Returns the attribute of the opcode defintion.value, if defined,
-		returns None if not.
+		Returns the attribute of the opcode defintion specified by the given "key".
+		If there is no opcode definition found, returns None.
 		"""
 		return None \
 			if self.definition is None or 'value' not in self.definition \
@@ -401,7 +401,7 @@ class Opcode(_SFZElement):
 	def write(self, stream):
 		"""
 		Exports this Opcode to .sfz format.
-		"stream" may be any file-like object, including sys.stdout.
+		"stream" may be any file-like object, (including sys.stdout).
 		"""
 		stream.write(str(self) + "\n")
 
@@ -414,6 +414,11 @@ class Sample(Opcode):
 	RE_PATH_DIVIDER = '[\\\/]'
 
 	def __init__(self, name, value, meta, basedir):
+		"""
+		When instantiating a Sample, the "name" and "_parsed_value" of the given path
+		is set in Opcode.__init__(). Afterwards, the "path" of the Sample may be
+		manipulated without destroying the initial value.
+		"""
 		super().__init__(name, value, meta)
 		self.path = value
 		self.basedir = basedir
