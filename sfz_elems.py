@@ -116,10 +116,8 @@ class _Header(_SFZElement):
 		"""
 		Returns a set of the keys of all the opcodes used in this _Header.
 		"""
-		mine = set(self._opcodes.keys())
-		return mine | reduce(or_, [heading.opcodes_used() for heading in self._subheadings]) \
-			if self._subheadings \
-			else mine
+		return set(self._opcodes.keys()) | reduce(or_, [heading.opcodes_used() \
+			for heading in self._subheadings], set())
 
 	@property
 	def opcodes(self):
@@ -231,9 +229,6 @@ class Region(_Header):
 		"""
 		Returns a set of all the string representation (including name and value) of
 		all the opcodes which are used by this Region.
-		Note that when a Drumkit Region is imported from an SFZ or another Drumkit,
-		opcodes from the source region as well as opcodes inherited from container
-		groups, (such as "Group", "Master", and "Global" groups), are included.
 		"""
 		return set(str(opcode) for opcode in self._opcodes.values())
 

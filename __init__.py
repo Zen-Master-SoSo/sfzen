@@ -253,7 +253,7 @@ class SFZ(_Header):
 		"""
 		Returns a set of the keys of all the opcodes used in this SFZ.
 		"""
-		return reduce(or_, [heading.opcodes_used() for heading in self._subheadings])
+		return reduce(or_, [heading.opcodes_used() for heading in self._subheadings], set())
 
 	def regions_for(self, lokey=None, hikey=None, lovel=None, hivel=None):
 		"""
