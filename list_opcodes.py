@@ -8,7 +8,7 @@ Utility which lists all opcodes declared in one or many .sfz files
 import os, logging, argparse, glob
 from progress.bar import IncrementalBar
 from sfzen import SFZ
-from sfzen import name_sorted
+from sfzen.sort import name_sorted
 
 
 def main():

@@ -10,8 +10,7 @@ import logging
 import re
 from os import path, symlink, link
 from shutil import copy2 as copy
-from functools import cached_property
-from functools import reduce
+from functools import cached_property, reduce
 from operator import or_
 from sfzen.sort import opcode_sorted
 from sfzen.opcodes import OPCODES
