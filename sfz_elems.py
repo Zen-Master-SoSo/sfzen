@@ -457,44 +457,63 @@ class Sample(Opcode):
 		"""
 		self.path = self.abspath
 
-	def resolve_from(self, target_dir):
+	def resolve_from(self, sfz_directory):
 		"""
 		Directs this Sample to use a relative path when writing .sfz.
-		"target_dir" is the directory of the .sfz file to be written.
-		"""
-		self.path = path.relpath(self.abspath, path.join(target_dir, self.basename))
 
-	def copy_to(self, target_dir):
+		"sfz_directory" is the directory in which the .sfz file is to be written.
 		"""
-		Copies the source sample to a new location.
-		Sets the value to be rendered to point to the new location relative to the .sfz
-		file to be written.
-		"""
-		copy(self.abspath, self._fix_to_samples_dir(target_dir))
+		self.path = path.relpath(self.abspath, path.join(sfz_directory, self.basename))
 
-	def symlink_to(self, target_dir):
+	def copy_to(self, sfz_directory, samples_path):
 		"""
-		Symlinks the source sample to a new location.
-		Sets the value to be rendered to point to the new location relative to the .sfz
-		file to be written.
-		"""
-		symlink(self.abspath, self._fix_to_samples_dir(target_dir))
+		Copies the source sample to a new location and sets the value of this "sample"
+		opcode to point to the new location.
 
-	def hardlink_to(self, target_dir):
-		"""
-		Hard links the source sample to a new location.
-		Sets the value to be rendered to point to the new location relative to the .sfz
-		file to be written.
-		"""
-		link(self.abspath, self._fix_to_samples_dir(target_dir))
+		"sfz_directory" is the directory in which the .sfz file is to be written.
 
-	def _fix_to_samples_dir(self, target_dir):
+		"samples_path" must be a path relative the directory in which the .sfz
+		file is to be written.
 		"""
-		Sets the "value" of this opcode to "samples/<basename>"
-		Returns the absolute path of the target sample relative to the sfz file to create.
+		copy(self.abspath, self._fix_to_samples_dir(sfz_directory, samples_path))
+
+	def symlink_to(self, sfz_directory, samples_path):
 		"""
-		self.path = path.join('samples', self.basename)
-		return path.join(target_dir, self.basename)
+		Symlinks the source sample in a new samples directory and sets the value of
+		this "sample" opcode to point to the new location.
+
+		"sfz_directory" is the directory in which the .sfz file is to be written.
+
+		"samples_path" must be a path relative the directory in which the .sfz
+		file is to be written.
+		"""
+		symlink(self.abspath, self._fix_to_samples_dir(sfz_directory, samples_path))
+
+	def hardlink_to(self, sfz_directory, samples_path):
+		"""
+		Hard links the source sample in a new samples directory and sets the value of
+		this "sample" opcode to point to the new location.
+
+		"sfz_directory" is the directory in which the .sfz file is to be written.
+
+		"samples_path" must be a path relative the directory in which the .sfz
+		file is to be written.
+		"""
+		link(self.abspath, self._fix_to_samples_dir(sfz_directory, samples_path))
+
+	def _fix_to_samples_dir(self, sfz_directory, samples_path):
+		"""
+		Sets the "value" of this opcode to "<samples_path>/<sample basename>".
+
+		Returns the absolute path of the sample in the new samples_path.
+
+		"sfz_directory" is the directory in which the .sfz file is to be written.
+
+		"samples_path" must be a path relative the directory in which the .sfz
+		file is to be written.
+		"""
+		self.path = path.join(samples_path, self.basename)
+		return path.join(sfz_directory, samples_path, self.basename)
 
 	def __str__(self):
 		return 'sample=%s' % self.path
