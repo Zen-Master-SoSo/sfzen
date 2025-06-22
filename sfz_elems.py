@@ -60,12 +60,12 @@ class _Header(_SFZElement):
 	subheader it may contain.
 	"""
 
-	def __init__(self, toks, meta):
+	def __init__(self, _, meta):
 		super().__init__(meta)
 		self._subheadings = []
 		self._opcodes = {}
 
-	def may_contain(self, header):
+	def may_contain(self, _):
 		"""
 		This function is used to determine if a header being parsed is a child of the
 		last previous header, or the start of an entirely new header group.

@@ -2,6 +2,10 @@
 #
 #  Copyright 2024 liyang <liyang@veronica>
 #
+"""
+Provides functions used for sorting opcodes in a preferred order.
+"""
+
 OPCODE_SORT_ORDER = [
 	'lokey',
 	'hikey',
