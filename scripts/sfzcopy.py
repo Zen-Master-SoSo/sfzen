@@ -1,0 +1,86 @@
+#  sfzen/scripts/sfzcopy.py
+#
+#  Copyright 2025 liyang <liyang@veronica>
+#
+"""
+Copies an sfz with various options for handling samples.
+"""
+import os, sys, logging, argparse
+from good_logging import log_error
+from sfzen import (
+	SFZ,
+	SAMPLES_ABSPATH,
+	SAMPLES_RESOLVE,
+	SAMPLES_COPY,
+	SAMPLES_SYMLINK,
+	SAMPLES_HARDLINK
+)
+
+
+def main():
+	p = argparse.ArgumentParser()
+	p.add_argument('Source', type=str, help='SFZ file to copy from')
+	p.add_argument('Target', type=str, nargs='?', help='Destination to copy to')
+	group = p.add_mutually_exclusive_group()
+	group.add_argument("--abspath", "-a", action="store_true",
+		help='Point to the original samples - absolute path')
+	group.add_argument("--relative", "-r", action="store_true",
+		help='Point to the original samples - relative path')
+	group.add_argument("--copy", "-c", action="store_true",
+		help='Copy samples to the "./samples" folder')
+	group.add_argument("--symlink", "-s", action="store_true",
+		help='Create symlinks in the "./samples" folder')
+	group.add_argument("--hardlink", "-l", action="store_true",
+		help='Hardlink samples in the "./samples" folder')
+	p.add_argument("--dry-run", "-n", action="store_true",
+		help="Do not make changes - just show what would be changed.")
+	p.add_argument("--verbose", "-v", action="store_true",
+		help="Show more detailed debug information")
+	p.epilog = """
+	Copies an .sfz to another location with multiple ways of handling samples.
+	"""
+	options = p.parse_args()
+	if not os.path.isfile(options.Source):
+		p.exit(f'"{options.Source[0]}" is not a file')
+	if not options.Target and not options.dry_run:
+		p.error('<Target> is required when not --dry-run')
+	log_level = logging.DEBUG if options.verbose else logging.ERROR
+	log_format = "[%(filename)24s:%(lineno)4d] %(levelname)-8s %(message)s"
+	logging.basicConfig(stream = sys.stdout, level = log_level, format = log_format)
+	if options.abspath:
+		samples_mode = SAMPLES_ABSPATH
+	elif options.relative:
+		samples_mode = SAMPLES_RESOLVE
+	elif options.copy:
+		samples_mode = SAMPLES_COPY
+	elif options.symlink:
+		samples_mode = SAMPLES_SYMLINK
+	else:
+		samples_mode = SAMPLES_HARDLINK
+
+	sfz = SFZ(options.Source)
+	target = options.Target
+	if os.path.isdir(target):
+		target = os.path.join(target, os.path.basename(options.Source))
+	if options.dry_run:
+		for sample in sfz.samples():
+			sample.use_abspath()
+		sfz.write(sys.stdout)
+	else:
+		try:
+			sfz.save_as(target, samples_mode)
+		except OSError as err:
+			if err.errno == 18:
+				print(f'Error {err}')
+				print('You probably tried to hardlink samples to a drive different from the one they are on.')
+				print('\nTry another sample mode:\n')
+				p.print_help()
+			else:
+				log_error(err)
+
+
+if __name__ == '__main__':
+	main()
+
+
+#  end sfzen/scripts/sfzcopy.py

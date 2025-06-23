@@ -16,12 +16,13 @@ from sfzen import COMMENT_DIVIDER
 from sfzen import SFZ
 from sfzen.sort import OPCODE_SORT_ORDER
 from sfzen.sfz_elems import Region as SFZRegion
-
-SAMPLES_ABSPATH				= 0
-SAMPLES_RESOLVE				= 1
-SAMPLES_COPY				= 2
-SAMPLES_SYMLINK				= 3
-SAMPLES_HARDLINK			= 4
+from sfzen import (
+	SAMPLES_ABSPATH,
+	SAMPLES_RESOLVE,
+	SAMPLES_COPY,
+	SAMPLES_SYMLINK,
+	SAMPLES_HARDLINK
+)
 
 # -----------------------------------------------------------------
 # constants

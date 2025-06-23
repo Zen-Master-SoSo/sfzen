@@ -5,7 +5,9 @@
 """
 Simple object-oriented SFZ parsing and manipulation.
 """
-import os, logging, re
+import logging, re
+from os import mkdir
+from os.path import abspath, basename, dirname, join, splitext, exists
 from operator import or_
 from functools import reduce
 from appdirs import user_cache_dir
@@ -31,6 +33,12 @@ from sfzen.sfz_elems import (
 )
 
 COMMENT_DIVIDER = '// ' + '-' * 76 + "\n"
+
+SAMPLES_ABSPATH				= 0
+SAMPLES_RESOLVE				= 1
+SAMPLES_COPY				= 2
+SAMPLES_SYMLINK				= 3
+SAMPLES_HARDLINK			= 4
 
 
 class SFZXformer(Transformer):
@@ -89,8 +97,8 @@ class SFZXformer(Transformer):
 		try:
 			include = Include(self.unquote(self.replace_defs(toks[0].value)), meta)
 			self.sfz.includes.append(include)
-			path = os.path.join(os.path.dirname(self.sfz.filename), include.filename)
-			if os.path.exists(path):
+			path = join(dirname(self.sfz.filename), include.filename)
+			if exists(path):
 				logging.debug('Including "%s"', path)
 				try:
 					subsfz = SFZ(path, defines = self.sfz.defines, basedir = self.sfz.basedir, is_include = True)
@@ -196,10 +204,10 @@ class SFZ(_Header):
 		if filename is None:
 			self.basedir = None
 		else:
-			self.basedir = os.path.dirname(self.filename) if basedir is None else basedir
+			self.basedir = dirname(self.filename) if basedir is None else basedir
 			if SFZ._parser is None:
-				cache_file = os.path.join(user_cache_dir(), 'sfzen')
-				grammar = os.path.join(os.path.dirname(__file__), 'res', 'sfz.lark')
+				cache_file = join(user_cache_dir(), 'sfzen')
+				grammar = join(dirname(__file__), 'res', 'sfz.lark')
 				SFZ._parser = Lark.open(grammar, parser='lalr', propagate_positions=True, cache=cache_file)
 			with open(filename) as f:
 				tree = SFZ._parser.parse(f.read() + "\n")
@@ -225,13 +233,13 @@ class SFZ(_Header):
 			meta.line,
 			type(error).__name__,
 			str(error),
-			os.path.basename(tb.tb_frame.f_code.co_filename),
+			basename(tb.tb_frame.f_code.co_filename),
 			tb.tb_lineno
 		)
 		self.parse_errors.append(error)
 
 	def __repr__(self):
-		return 'SFZ "%s"' % os.path.basename(self.filename)
+		return 'SFZ "%s"' % basename(self.filename)
 
 	def inherited_opcodes(self):
 		return {}
@@ -265,6 +273,50 @@ class SFZ(_Header):
 		for region in self.regions():
 			if region.is_triggerd_by(lokey, hikey, lovel, hivel):
 				yield region
+
+	def save_as(self, filename, samples_mode = SAMPLES_ABSPATH):
+		"""
+		Save to the given filename.
+
+		"samples_mode" is a constant which defines how to render "sample"
+		opcodes. May be one of:
+
+			SAMPLES_ABSPATH		SAMPLES_RESOLVE		SAMPLES_COPY
+			SAMPLES_SYMLINK		SAMPLES_HARDLINK
+
+		"""
+		filename = abspath(filename)
+		target_sfz_dir = dirname(filename)
+		filetitle, ext = splitext(basename(filename))
+		try:
+			mkdir(target_sfz_dir)
+		except FileExistsError:
+			pass
+		if samples_mode == SAMPLES_ABSPATH:
+			for sample in self.samples():
+				sample.use_abspath()
+		elif samples_mode == SAMPLES_RESOLVE:
+			for sample in self.samples():
+				sample.resolve_from(target_sfz_dir)
+		else:
+			samples_path = filetitle + '-samples'
+			try:
+				mkdir(join(target_sfz_dir, samples_path))
+			except FileExistsError:
+				pass
+			for sample in self.samples():
+				try:
+					if samples_mode == SAMPLES_COPY:
+						sample.copy_to(target_sfz_dir, samples_path)
+					elif samples_mode == SAMPLES_SYMLINK:
+						sample.symlink_to(target_sfz_dir, samples_path)
+					elif samples_mode == SAMPLES_HARDLINK:
+						sample.hardlink_to(target_sfz_dir, samples_path)
+				except FileExistsError:
+					pass
+		with open(filename + '.sfz' if ext == '' else filename,
+			'w', encoding = 'utf-8') as fob:
+			self.write(fob)
 
 	def write(self, stream):
 		"""
