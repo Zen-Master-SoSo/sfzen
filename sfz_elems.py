@@ -205,22 +205,24 @@ class Region(_Header):
 	def may_contain(self, header):
 		return type(header) not in [Global, Master, Group, Region]
 
-	def is_triggerd_by(self, lokey=None, hikey=None, lovel=None, hivel=None):
+	def is_triggerd_by(self, key=None, lokey=None, hikey=None, lovel=None, hivel=None):
 		"""
 		Returns boolean True/False if this Region matches the given criteria.
 		For example, to test if this region plays Middle C at any velocity:
 			region.is_triggerd_by(lokey = 60, hikey = 60)
 		"""
-		if lokey is None and hikey is None and lovel is None and hivel is None:
-			raise Exception('Requires a key or velocity to test')
+		if key is None and lokey is None and hikey is None and lovel is None and hivel is None:
+			raise Exception('Requires a key or velocity to test against')
 		ops = self.inherited_opcodes()
-		if 'lokey' in ops and lokey is not None and ops['lokey'].value > lokey:
+		if key is not None and 'key' in ops and ops['key'].value != key:
 			return False
-		if 'hikey' in ops and hikey is not None and ops['hikey'].value < hikey:
+		if lokey is not None and 'lokey' in ops and ops['lokey'].value > lokey:
 			return False
-		if 'lovel' in ops and lovel is not None and ops['lovel'].value > lovel:
+		if hikey is not None and 'hikey' in ops and ops['hikey'].value < hikey:
 			return False
-		if 'hivel' in ops and hivel is not None and ops['hivel'].value < hivel:
+		if lovel is not None and 'lovel' in ops and ops['lovel'].value > lovel:
+			return False
+		if hivel is not None and 'hivel' in ops and ops['hivel'].value < hivel:
 			return False
 		return True
 

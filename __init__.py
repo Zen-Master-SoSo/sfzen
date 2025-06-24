@@ -263,7 +263,7 @@ class SFZ(_Header):
 		"""
 		return reduce(or_, [heading.opcodes_used() for heading in self._subheadings], set())
 
-	def regions_for(self, lokey=None, hikey=None, lovel=None, hivel=None):
+	def regions_for(self, key=None, lokey=None, hikey=None, lovel=None, hivel=None):
 		"""
 		Generator function which yields each region contained in this SFZ which matches
 		the given criteria.
@@ -271,7 +271,7 @@ class SFZ(_Header):
 			sfz.regions_for(lokey = 60, hikey = 60)
 		"""
 		for region in self.regions():
-			if region.is_triggerd_by(lokey, hikey, lovel, hivel):
+			if region.is_triggerd_by(key, lokey, hikey, lovel, hivel):
 				yield region
 
 	def save_as(self, filename, samples_mode = SAMPLES_ABSPATH):
