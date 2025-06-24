@@ -6,9 +6,9 @@
 Classes which are instantiated when parsing an .sfz file.
 All of these classes are constructed from a lark parser tree Token.
 """
-import logging
-import re
-from os import path, symlink, link
+import re, logging
+from os import symlink, link, sep as path_separator
+from os.path import abspath, exists, join, relpath
 from shutil import copy2 as copy
 from functools import cached_property, reduce
 from operator import or_
@@ -438,7 +438,8 @@ class Sample(Opcode):
 		"""
 		Returns (str) the absolute path to the sample
 		"""
-		return path.abspath(path.join(self.basedir, *self.path_parts))
+		path = path_separator + join(*self.path_parts)
+		return path if exists(path) else abspath(join(self.basedir, *self.path_parts))
 
 	@cached_property
 	def basename(self):
@@ -451,7 +452,7 @@ class Sample(Opcode):
 		"""
 		Returns boolean True if file exists
 		"""
-		return path.exists(self.abspath)
+		return exists(self.abspath)
 
 	def use_abspath(self):
 		"""
@@ -465,7 +466,7 @@ class Sample(Opcode):
 
 		"sfz_directory" is the directory in which the .sfz file is to be written.
 		"""
-		self.path = path.relpath(self.abspath, path.join(sfz_directory, self.basename))
+		self.path = relpath(self.abspath, join(sfz_directory, self.basename))
 
 	def copy_to(self, sfz_directory, samples_path):
 		"""
@@ -514,8 +515,8 @@ class Sample(Opcode):
 		"samples_path" must be a path relative the directory in which the .sfz
 		file is to be written.
 		"""
-		self.path = path.join(samples_path, self.basename)
-		return path.join(sfz_directory, samples_path, self.basename)
+		self.path = join(samples_path, self.basename)
+		return join(sfz_directory, samples_path, self.basename)
 
 	def __str__(self):
 		return 'sample=%s' % self.path
