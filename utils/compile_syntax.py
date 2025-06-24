@@ -29,7 +29,9 @@ def compile_syntax(yaml_file, target_file):
 
 def compile_opcodes(syntax_file, target_file):
 	with open(syntax_file) as syntaxfile:
-		SYNTAX = eval(syntaxfile.read()[65:])
+		filecontent = syntaxfile.read()
+	syntax_start = filecontent.index('{')
+	SYNTAX = eval(filecontent[syntax_start:])
 	opcodes = {
 		opcode['name']: opcode \
 		for opcode in extract_opcodes(SYNTAX['categories'])
