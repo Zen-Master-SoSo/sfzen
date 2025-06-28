@@ -1,6 +1,6 @@
-#  sfzen/list_opcodes.py
+#  sfzen/scripts/sfz_opcode_usage.py
 #
-#  Copyright 2024 liyang <liyang@veronica>
+#  Copyright 2025 liyang <liyang@veronica>
 #
 """
 Utility which lists all opcodes declared in one or many .sfz files
@@ -49,4 +49,4 @@ if __name__ == "__main__":
 	main()
 
 
-#  end sfzen/list_opcodes.py
+#  end sfzen/scripts/sfz_opcode_usage.py

@@ -2,5 +2,5 @@
 # -*- coding: utf-8 -*-
 if __name__ == '__main__':
 	import sys
-	from sfzen.scripts.sfzcopy import main
+	from sfzen.scripts.sfz_opcode_usage import main
 	sys.exit(main())

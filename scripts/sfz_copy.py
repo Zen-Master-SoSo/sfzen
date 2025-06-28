@@ -1,4 +1,4 @@
-#  sfzen/scripts/sfzcopy.py
+#  sfzen/scripts/sfz_copy.py
 #
 #  Copyright 2025 liyang <liyang@veronica>
 #
@@ -83,4 +83,4 @@ if __name__ == '__main__':
 	main()
 
 
-#  end sfzen/scripts/sfzcopy.py
+#  end sfzen/scripts/sfz_copy.py
