@@ -127,8 +127,7 @@ class SFZXformer(Transformer):
 				if toks[0] == 'curve_index':
 					self.current_header.curve_index = toks[1].value
 				else:
-					match = re.match(r'v(\d+)', toks[0].value)
-					if match:
+					if re.match(r'v(\d+)', toks[0].value):
 						self.current_header.points[toks[0].value] = toks[1].value
 					else:
 						logging.error('Invalid opcode inside velocity curve definition')

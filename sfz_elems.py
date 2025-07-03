@@ -10,11 +10,14 @@ import re, logging
 from os import symlink, link, sep as path_separator
 from os.path import abspath, exists, join, relpath
 from shutil import copy2 as copy
-from functools import cached_property, reduce
+from functools import lru_cache, cached_property, reduce
 from operator import or_
 from sfzen.sort import opcode_sorted
 from sfzen.opcodes import OPCODES
 
+
+# ---------------------------
+# Elements
 
 class _SFZElement:
 	"""
@@ -336,11 +339,18 @@ class Opcode(_SFZElement):
 		return self._def_value('unit')
 
 	@cached_property
-	def valid(self):
+	def validation_rule(self):
 		"""
 		Returns the validation rule defined in the opcode definition.
 		"""
 		return self._def_value('valid')
+
+	@cached_property
+	def validator(self):
+		"""
+		Returns a class which extends _Validator
+		"""
+		return validator_for(self.name)
 
 	@cached_property
 	def definition(self):
@@ -348,9 +358,7 @@ class Opcode(_SFZElement):
 		Returns the defintion of this opcode from the SFZ syntax (see opcodes.py)
 		The defintion name is normalized, replacing "_ccN" -type elements.
 		"""
-		return OPCODES[self.name] \
-			if self.name in OPCODES \
-			else self._get_opcode_def(self.name)
+		return opcode_definition(self.name)
 
 	def _def_value(self, key):
 		"""
@@ -360,38 +368,6 @@ class Opcode(_SFZElement):
 		return None \
 			if self.definition is None or 'value' not in self.definition \
 			else self.definition['value'][key]
-
-	def _get_opcode_def(self, name):
-		"""
-		Normalizes a "_ccN" opcode name and returns the matching opcode definition.
-		"""
-		if re.match(r'amp_velcurve_(\d+)', name):
-			return 'amp_velcurve_N'
-		if re.search(r'eq\d+_', name):
-			name = re.sub(r'eq\d+_', 'eqN_', name)
-			if name in OPCODES:
-				return OPCODES[name]
-			if re.search(r'cc\d', name):
-				for regex, repl in {
-					r'_oncc(\d+)'	: '_onccX',
-					r'_cc(\d+)'		: '_ccX',
-					r'cc(\d+)'		: 'ccX'
-				}.items():
-					sub = re.sub(regex, repl, name)
-					if sub != name and sub in OPCODES:
-						return OPCODES[sub]
-		if re.search(r'cc\d', name):
-			for regex, repl in {
-				r'_oncc(\d+)'	: '_onccN',
-				r'_cc(\d+)'		: '_ccN',
-				r'cc(\d+)'		: 'ccN'
-			}.items():
-				sub = re.sub(regex, repl, name)
-				if sub != name:
-					# Recurse for opcodes like "eq3_gain_oncc12"
-					return OPCODES[sub] if sub in OPCODES else self._get_opcode_def(sub)
-		logging.warning('Could not find opcode "%s"', name)
-		return None
 
 	def __repr__(self):
 		return '%-4d| opcode #%d: "%s" = %s' % (
@@ -547,6 +523,168 @@ class Include(_Modifier):
 
 	def __repr__(self):
 		return '%-4d| include #%d: %s' % (self.line, self._idx, self.filename)
+
+
+# ---------------------------
+# Validators
+
+class _Validator:
+
+	def type_name(self):
+		return "any" if self.type_ is None else self.type_.__name__
+
+
+class AnyValidator(_Validator):
+
+	def is_valid(self, *_):
+		return True
+
+
+class ChoiceValidator(_Validator):
+
+	@classmethod
+	def from_rule(cls, str_choices, type_):
+		return ChoiceValidator(
+			[ c.strip("' []") for c in str_choices.split(',') ],
+			type_)
+
+	def __init__(self, choices, type_):
+		self.choices = choices
+		self.type_ = type_
+
+	def is_valid(self, value, validate_type = True):
+		if validate_type and type(value) != self.type_:
+			return False
+		return value in self.choices
+
+
+class RangeValidator(_Validator):
+
+	@classmethod
+	def from_rule(cls, rulestr, type_):
+		lo, hi = rulestr.split(',')
+		if type_ is None:
+			type_ = int
+		return RangeValidator(type_(lo), type_(hi), type_)
+
+	def __init__(self, lowval, highval, type_):
+		self.lowval = lowval
+		self.highval = highval
+		self.type_ = type_
+
+	def is_valid(self, value, validate_type = True):
+		if validate_type and type(value) != self.type_:
+			return False
+		return self.lowval <= value <= self.hival
+
+
+class MinValidator(_Validator):
+
+	@classmethod
+	def from_rule(cls, rulestr, type_):
+		if type_ is None:
+			type_ = int
+		return MinValidator(type_(rulestr), type_)
+
+	def __init__(self, lowval, type_):
+		self.lowval = lowval
+		self.type_ = type_
+
+	def is_valid(self, value, validate_type = True):
+		if validate_type and type(value) != self.type_:
+			return False
+		return self.lowval <= value
+
+
+@lru_cache
+def validator_for(opcode_name):
+	"""
+	Returns a class which extends _Validator
+	"""
+	rule = validation_rule(opcode_name)
+	if rule is None:
+		return AnyValidator()
+	type_ = data_type(opcode_name)
+	match = re.match(r'^(Any|Choice|Range|Min)\(([^\)]*)\)', rule)
+	if match is None:
+		raise RuntimeError('Invalid validation rule: ' + rule)
+	if match.group(1) == 'Any':
+		return AnyValidator()
+	if match.group(1) == 'Choice':
+		return ChoiceValidator.from_rule(match.group(2), type_)
+	if match.group(1) == 'Range':
+		return RangeValidator.from_rule(match.group(2), type_)
+	if match.group(1) == 'Min':
+		return MinValidator.from_rule(match.group(2), type_)
+
+@lru_cache
+def validation_rule(opcode_name):
+	definition = opcode_definition(opcode_name)
+	if definition is None:
+		return None
+	if "value" not in definition or "valid" not in definition["value"]:
+		return validation_rule(definition["modulates"]) \
+			if "modulates" in definition else None
+	rule = definition["value"]["valid"]
+	match = re.match(r'^(Any|Alias|Choice|Range|Min)\(([^\)]*)\)', rule)
+	if match is None:
+		raise RuntimeError('Invalid validation rule: ' + rule)
+	return validation_rule(match.group(2).strip("'")) \
+		if match.group(1) == 'Alias' \
+		else match.group(0)
+
+@lru_cache
+def data_type(opcode_name):
+	definition = opcode_definition(opcode_name)
+	if definition is None:
+		return None
+	if "value" not in definition or "type" not in definition["value"]:
+		return data_type(definition["modulates"]) \
+			if "modulates" in definition else None
+	if definition["value"]["type"] == 'float':
+		return float
+	if definition["value"]["type"] == 'integer':
+		return int
+	if definition["value"]["type"] == 'string':
+		return str
+	raise Exception("unknown type: " + definition["value"]["type"])
+
+@lru_cache
+def opcode_definition(opcode_name):
+	"""
+	Normalizes a "_ccN" opcode opcode_name and returns the matching opcode definition.
+	"""
+	if opcode_name is None:
+		return None
+	if opcode_name in OPCODES:
+		return OPCODES[opcode_name]
+	if re.match(r'amp_velcurve_(\d+)', opcode_name):
+		return OPCODES['amp_velcurve_N']
+	if re.search(r'eq\d+_', opcode_name):
+		opcode_name = re.sub(r'eq\d+_', 'eqN_', opcode_name)
+		if opcode_name in OPCODES:
+			return OPCODES[opcode_name]
+		if re.search(r'cc\d', opcode_name):
+			for regex, repl in {
+				r'_oncc(\d+)'	: '_onccX',
+				r'_cc(\d+)'		: '_ccX',
+				r'cc(\d+)'		: 'ccX'
+			}.items():
+				sub = re.sub(regex, repl, opcode_name)
+				if sub != opcode_name and sub in OPCODES:
+					return OPCODES[sub]
+	if re.search(r'cc\d', opcode_name):
+		for regex, repl in {
+			r'_oncc(\d+)'	: '_onccN',
+			r'_cc(\d+)'		: '_ccN',
+			r'cc(\d+)'		: 'ccN'
+		}.items():
+			sub = re.sub(regex, repl, opcode_name)
+			if sub != opcode_name:
+				# Recurse for opcodes like "eq3_gain_oncc12"
+				return OPCODES[sub] if sub in OPCODES else opcode_definition(sub)
+	logging.warning('Could not find opcode "%s"', opcode_name)
+	return None
 
 
 #  end sfzen/sfz_elems.py
