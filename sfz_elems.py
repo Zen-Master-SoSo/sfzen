@@ -318,16 +318,20 @@ class Opcode(_SFZElement):
 		"""
 		Returns the value as the type defined in the opcode definition.
 		"""
-		if self.type == 'float':
+		if self.type is float:
 			return float(self._parsed_value)
-		if self.type == 'integer':
+		if self.type == int:
 			return int(self._parsed_value)
 		return self._parsed_value
 
 	@cached_property
 	def type(self):
+		return data_type(self.name)
+
+	@cached_property
+	def type_str(self):
 		"""
-		Returns the type defined in the opcode definition.
+		Returns the string "type" defined in the opcode definition.
 		"""
 		return self._def_value('type')
 
@@ -531,7 +535,7 @@ class Include(_Modifier):
 class _Validator:
 
 	def type_name(self):
-		return "any" if self.type_ is None else self.type_.__name__
+		return "any" if self.type is None else self.type.__name__
 
 
 class AnyValidator(_Validator):
@@ -550,10 +554,10 @@ class ChoiceValidator(_Validator):
 
 	def __init__(self, choices, type_):
 		self.choices = choices
-		self.type_ = type_
+		self.type = type_
 
 	def is_valid(self, value, validate_type = True):
-		if validate_type and type(value) != self.type_:
+		if validate_type and type(value) != self.type:
 			return False
 		return value in self.choices
 
@@ -570,10 +574,10 @@ class RangeValidator(_Validator):
 	def __init__(self, lowval, highval, type_):
 		self.lowval = lowval
 		self.highval = highval
-		self.type_ = type_
+		self.type = type_
 
 	def is_valid(self, value, validate_type = True):
-		if validate_type and type(value) != self.type_:
+		if validate_type and type(value) != self.type:
 			return False
 		return self.lowval <= value <= self.hival
 
@@ -588,10 +592,10 @@ class MinValidator(_Validator):
 
 	def __init__(self, lowval, type_):
 		self.lowval = lowval
-		self.type_ = type_
+		self.type = type_
 
 	def is_valid(self, value, validate_type = True):
-		if validate_type and type(value) != self.type_:
+		if validate_type and type(value) != self.type:
 			return False
 		return self.lowval <= value
 
@@ -604,28 +608,28 @@ def validator_for(opcode_name):
 	rule = validation_rule(opcode_name)
 	if rule is None:
 		return AnyValidator()
-	type_ = data_type(opcode_name)
-	match = re.match(r'^(Any|Choice|Range|Min)\(([^\)]*)\)', rule)
+	match = re.match(r'^(Choice|Range|Min|Any)\(([^\)]*)\)', rule)
 	if match is None:
 		raise RuntimeError('Invalid validation rule: ' + rule)
-	if match.group(1) == 'Any':
-		return AnyValidator()
+	type_ = data_type(opcode_name)
 	if match.group(1) == 'Choice':
 		return ChoiceValidator.from_rule(match.group(2), type_)
 	if match.group(1) == 'Range':
 		return RangeValidator.from_rule(match.group(2), type_)
 	if match.group(1) == 'Min':
 		return MinValidator.from_rule(match.group(2), type_)
+	return AnyValidator()
 
 @lru_cache
 def validation_rule(opcode_name):
 	definition = opcode_definition(opcode_name)
 	if definition is None:
 		return None
-	if "value" not in definition or "valid" not in definition["value"]:
+	try:
+		rule = definition["value"]["valid"]
+	except KeyError:
 		return validation_rule(definition["modulates"]) \
 			if "modulates" in definition else None
-	rule = definition["value"]["valid"]
 	match = re.match(r'^(Any|Alias|Choice|Range|Min)\(([^\)]*)\)', rule)
 	if match is None:
 		raise RuntimeError('Invalid validation rule: ' + rule)
@@ -635,6 +639,9 @@ def validation_rule(opcode_name):
 
 @lru_cache
 def data_type(opcode_name):
+	"""
+	Normalizes a "_ccN" opcode opcode_name and returns the data type
+	"""
 	definition = opcode_definition(opcode_name)
 	if definition is None:
 		return None
@@ -650,41 +657,85 @@ def data_type(opcode_name):
 	raise Exception("unknown type: " + definition["value"]["type"])
 
 @lru_cache
+def modulates(opcode_name):
+	"""
+	Returns the name of the opcode that the given opcode modulates, if applicable.
+	"""
+	definition = opcode_definition(opcode_name)
+	try:
+		return definition["modulates"]
+	except KeyError:
+		return None
+
+@lru_cache
 def opcode_definition(opcode_name):
 	"""
 	Normalizes a "_ccN" opcode opcode_name and returns the matching opcode definition.
 	"""
+	opcode_name = normal_opcode(opcode_name)
+	return None if opcode_name is None else OPCODES[opcode_name]
+
+@lru_cache
+def normal_opcode(opcode_name, follow_aliases = True):
+	"""
+	Normalizes a "_ccN" opcode opcode_name.
+	If "follow_aliases" is True, returns the name of the opcode that this opcode aliases.
+	"""
 	if opcode_name is None:
+		logging.warning('opcode_name is None')
 		return None
 	if opcode_name in OPCODES:
-		return OPCODES[opcode_name]
+		return aliases(opcode_name) if follow_aliases else opcode_name
 	if re.match(r'amp_velcurve_(\d+)', opcode_name):
-		return OPCODES['amp_velcurve_N']
+		return 'amp_velcurve_N'
 	if re.search(r'eq\d+_', opcode_name):
 		opcode_name = re.sub(r'eq\d+_', 'eqN_', opcode_name)
 		if opcode_name in OPCODES:
-			return OPCODES[opcode_name]
+			return aliases(opcode_name) if follow_aliases else opcode_name
 		if re.search(r'cc\d', opcode_name):
-			for regex, repl in {
-				r'_oncc(\d+)'	: '_onccX',
-				r'_cc(\d+)'		: '_ccX',
-				r'cc(\d+)'		: 'ccX'
-			}.items():
+			for regex, repl in [
+				(r'_oncc(\d+)', '_onccX'),
+				(r'_cc(\d+)', '_ccX'),
+				(r'cc(\d+)', 'ccX')
+			]:
 				sub = re.sub(regex, repl, opcode_name)
 				if sub != opcode_name and sub in OPCODES:
-					return OPCODES[sub]
+					return aliases(sub) if follow_aliases else opcode_name
 	if re.search(r'cc\d', opcode_name):
-		for regex, repl in {
-			r'_oncc(\d+)'	: '_onccN',
-			r'_cc(\d+)'		: '_ccN',
-			r'cc(\d+)'		: 'ccN'
-		}.items():
+		for regex, repl in [
+			(r'_oncc(\d+)', '_onccN'),
+			(r'_cc(\d+)', '_ccN'),
+			(r'cc(\d+)', 'ccN')
+		]:
 			sub = re.sub(regex, repl, opcode_name)
 			if sub != opcode_name:
 				# Recurse for opcodes like "eq3_gain_oncc12"
-				return OPCODES[sub] if sub in OPCODES else opcode_definition(sub)
+				if sub in OPCODES:
+					return aliases(sub) if follow_aliases else opcode_name
+				logging.debug('normal_opcode: Falling through to do recursive checking')
+				return normal_opcode(sub, follow_aliases)
 	logging.warning('Could not find opcode "%s"', opcode_name)
 	return None
+
+
+def aliases(opcode_name, only_alias = False):
+	"""
+	Returns the opcode which the given opcode aliases, (if it does).
+	If it is not aliasing another opcode, the return value depends upon the
+	"only_alias" argument. When "only_alias" is True, and the given opcode does not
+	alias another opcode, returns None. When "only_alias" is False (the default),
+	and the given opcode does not alias another opcode, returns the given opcode.
+	"""
+	definition = OPCODES[opcode_name]
+	if definition is not None:
+		try:
+			match = re.match(r'Alias\([\'"](\w+)[\'"]\)', definition['value']['valid'])
+		except KeyError:
+			pass
+		else:
+			if match:
+				return match.group(1)
+	return None if only_alias else opcode_name
 
 
 #  end sfzen/sfz_elems.py
