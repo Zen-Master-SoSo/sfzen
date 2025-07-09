@@ -21,6 +21,8 @@ def main():
 	p = argparse.ArgumentParser()
 	p.add_argument('Source', type=str, help='SFZ file to copy from')
 	p.add_argument('Target', type=str, nargs='?', help='Destination to copy to')
+	p.add_argument("--simplify", "-S", action="store_true",
+		help='Reduce the number of opcode declarations by forming groups which define common opcodes.')
 	group = p.add_mutually_exclusive_group()
 	group.add_argument("--abspath", "-a", action="store_true",
 		help='Point to the original samples - absolute path')
@@ -59,14 +61,16 @@ def main():
 		samples_mode = SAMPLES_HARDLINK
 
 	sfz = SFZ(options.Source)
-	target = options.Target
-	if os.path.isdir(target):
-		target = os.path.join(target, os.path.basename(options.Source))
+	if options.simplify:
+		sfz = sfz.simplified()
 	if options.dry_run:
 		for sample in sfz.samples():
 			sample.use_abspath()
 		sfz.write(sys.stdout)
 	else:
+		target = options.Target
+		if os.path.isdir(target):
+			target = os.path.join(target, os.path.basename(options.Source))
 		try:
 			sfz.save_as(target, samples_mode)
 		except OSError as err:

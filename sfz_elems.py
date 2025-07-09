@@ -11,7 +11,7 @@ from os import symlink, link, sep as path_separator
 from os.path import abspath, exists, join, relpath
 from shutil import copy2 as copy
 from functools import lru_cache, cached_property, reduce
-from operator import or_
+from operator import and_, or_
 from sfzen.sort import opcode_sorted
 from sfzen.opcodes import OPCODES
 
@@ -25,18 +25,18 @@ class _SFZElement:
 	This is the base class of all Headers and Opcodes.
 	"""
 
-	_ordinals = {}
-
 	def __init__(self, meta):
 		typ = type(self).__name__
-		if typ not in _SFZElement._ordinals:
-			_SFZElement._ordinals[typ] = 1
-		self._idx = _SFZElement._ordinals[typ]
-		_SFZElement._ordinals[typ] += 1
-		self.line = meta.line
-		self.column = meta.column
-		self.end_line = meta.end_line
-		self.end_column = meta.end_column
+		if meta is None:
+			self.line = None
+			self.column = None
+			self.end_line = None
+			self.end_column = None
+		else:
+			self.line = meta.line
+			self.column = meta.column
+			self.end_line = meta.end_line
+			self.end_column = meta.end_column
 		self._parent = None
 
 	@property
@@ -54,6 +54,9 @@ class _SFZElement:
 	@parent.setter
 	def parent(self, parent):
 		self._parent = parent
+
+	def __repr__(self):
+		return type(self).__name__
 
 
 class _Header(_SFZElement):
@@ -91,24 +94,54 @@ class _Header(_SFZElement):
 
 	def inherited_opcodes(self):
 		"""
-		Returns all the opcodes defined in this header with all opcodes defined in its
-		parent header, recursively. Opcodes defined in this header override parent's.
+		Returns all the opcodes defined in this _Header with all opcodes defined in its
+		parent _Header, recursively. Opcodes defined in this _Header override parent's.
 		"""
 		return dict(self._parent.inherited_opcodes(), **self._opcodes)
 
-	def regions(self):
+	def opstrings(self):
 		"""
-		Returns all <region> headers contained by this header and all of its child
-		headers.
+		Returns a set of all the string representation (including name and value) of
+		all the opcodes which are used by this _Header. This does NOT include opcodes
+		used by subheadings beneath this _Header.
 		"""
-		for sub in self._subheadings:
-			if isinstance(sub, Region):
-				yield sub
-			yield from sub.regions()
+		return set(str(opcode) for opcode in self._opcodes.values())
+
+	def opstrings_used(self):
+		"""
+		Returns a set of all the string representation (including name and value) of
+		all the opcodes used in this _Header, including opcodes from _Headers contained
+		in this _Header.
+		"""
+		opstrings = [sub.opstrings_used() for sub in self._subheadings]
+		opstrings.append(self.opstrings())
+		return reduce(or_, opstrings, set())
+
+	def common_opstrings(self):
+		"""
+		Returns a set of all the string representation (including name and value) of
+		all the identical opcodes used in every subheading in this _Header.
+		"""
+		if len(self._subheadings):
+			sets = [subheading.common_opstrings() for subheading in self._subheadings]
+			# At this point every element of the list is a set of opstrings, one per subheading.
+			# Some subheadings have NO common sets, filter these out before reducing to a final set:
+			sets = [ set_ for set_ in sets if len(set_) ]
+			# Reduce to a single set, or return an empty set if all were empty.
+			return reduce(and_, sets) if sets else set()
+		return self.opstrings()
+
+	def uses_opstring(self, opstring):
+		"""
+		Returns True if the given string representation (including name and value) of
+		an opcode is used by this _Header. This does not include opcodes used by
+		_Headers contained in this _Header.
+		"""
+		return opstring in self.opstrings()
 
 	def opcode(self, name):
 		"""
-		Returns an Opcode with the given name, if one exists in this header or any of
+		Returns an Opcode with the given name, if one exists in this _Header or any of
 		its ancestors. Returns None if no such opcode exists.
 		"""
 		return self._opcodes[name] if name in self._opcodes \
@@ -129,6 +162,16 @@ class _Header(_SFZElement):
 		"""
 		return self._opcodes
 
+	def regions(self):
+		"""
+		Returns all <region> headers contained by this _Header and all of its child
+		headers.
+		"""
+		for sub in self._subheadings:
+			if isinstance(sub, Region):
+				yield sub
+			yield from sub.regions()
+
 	def samples(self):
 		"""
 		Generator which yields a Sample on each iteraration.
@@ -141,22 +184,41 @@ class _Header(_SFZElement):
 	@property
 	def subheadings(self):
 		"""
-		Returns a list of headers contained in this header.
+		Returns a list of headers contained in this _Header.
 		"""
 		return self._subheadings
 
-	def __repr__(self):
-		return '%-4d| %s #%s (%d opcodes)' % (
-			self.line, type(self).__name__, self._idx, len(self._opcodes))
+	def walk(self, depth = 0):
+		"""
+		Generator which recusively yields every element contained in this _Header,
+		including opcodes and subheaders. Opcodes are yielded first, then subheaders.
+		"""
+		yield (self, depth)
+		depth += 1
+		for opcode in self._opcodes.values():
+			yield (opcode, depth)
+		for sub in self._subheadings:
+			yield from sub.walk(depth)
+
+	def opcode_count(self):
+		"""
+		Returns (int) number of opcodes used in this _Header and all subheaders
+		"""
+		return sum(len(elem.opcodes.values()) \
+			for elem,_ in self.walk() \
+			if isinstance(elem, _Header))
 
 	def __str__(self):
 		return '<%s>' % type(self).__name__.lower()
 
+	def __repr__(self):
+		return '{0} ({1:d} opcodes)'.format(type(self).__name__, len(self._opcodes))
+
 	def write(self, stream):
 		"""
-		Exports this header and all of it's contained headers and
+		Exports this _Header and all of it's contained headers and
 		opcodes to .sfz format.
-		"stream" may be any file-like object, including sys.stdout.
+		"stream" may be any file-like object, like "sys.stdout".
 		"""
 		stream.write(str(self) + "\n")
 		opcodes = self._opcodes.values()
@@ -229,24 +291,6 @@ class Region(_Header):
 			return False
 		return True
 
-	@cached_property
-	def opstrings(self):
-		"""
-		Returns a set of all the string representation (including name and value) of
-		all the opcodes which are used by this Region.
-		"""
-		return set(str(opcode) for opcode in self._opcodes.values())
-
-	def uses_opstring(self, opstring):
-		"""
-		Returns True if the given string representation (including name and value) of
-		an opcode is used by this Region. Checks opcodes defined in this Region as well
-		as opcodes inherited from container groups, such as Group, Master, and Global
-		groups.
-		Note that opcode name AND value must match.
-		"""
-		return opstring in self.opstrings
-
 	def sample(self):
 		"""
 		Returns the "sample" opcode in this region, if one exists.
@@ -285,10 +329,6 @@ class Curve(_Header):
 
 	curve_index = None
 	points = {}
-
-	def __repr__(self):
-		return '%-4d| %s #%s curve_index %s (%d points)' % \
-			(self.line, type(self).__name__, self._idx, self.curve_index, len(self.points))
 
 	def __str__(self):
 		return '<%s>curve_index=%s' % (type(self).__name__.lower(), self.curve_index)
@@ -373,12 +413,11 @@ class Opcode(_SFZElement):
 			if self.definition is None or 'value' not in self.definition \
 			else self.definition['value'][key]
 
-	def __repr__(self):
-		return '%-4d| opcode #%d: "%s" = %s' % (
-			self.line, self._idx, self.name, repr(self.value))
-
 	def __str__(self):
 		return '%s=%s' % (self.name, self._parsed_value)
+
+	def __repr__(self):
+		return f'Opcode {self}'
 
 	def write(self, stream):
 		"""
@@ -512,9 +551,6 @@ class Define(_Modifier):
 		self.varname = varname
 		self.value = value
 
-	def __repr__(self):
-		return '%-4d| define #%d: %s = %s' % (self.line, self._idx, self.varname, self.value)
-
 
 class Include(_Modifier):
 	"""
@@ -524,9 +560,6 @@ class Include(_Modifier):
 	def __init__(self, filename, meta):
 		super().__init__(meta)
 		self.filename = filename
-
-	def __repr__(self):
-		return '%-4d| include #%d: %s' % (self.line, self._idx, self.filename)
 
 
 # ---------------------------

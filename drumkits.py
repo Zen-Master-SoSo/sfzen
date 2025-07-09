@@ -13,7 +13,7 @@ from functools import reduce, cached_property
 from operator import and_, or_
 from midi_notes import Note, MIDI_DRUM_IDS, MIDI_DRUM_PITCHES, MIDI_DRUM_NAMES
 from sfzen import COMMENT_DIVIDER
-from sfzen import SFZ
+from sfzen import SFZ, KEY_OPCODES
 from sfzen.sort import OPCODE_SORT_ORDER
 from sfzen.sfz_elems import Region as SFZRegion
 from sfzen import (
@@ -149,13 +149,6 @@ class Region(SFZRegion):
 		self.end_line = source_region.end_line
 		self.end_column = source_region.end_column
 
-	def __repr__(self):
-		return 'Region: %s, line %d (%d opcodes)' % (
-			basename(self.filename),
-			self.line,
-			len(self._opcodes)
-		)
-
 	def write(self, stream, region_exclude):
 		"""
 		Write in SFZ format to any file-like object, including sys.stdout.
@@ -165,7 +158,7 @@ class Region(SFZRegion):
 		defined in a parent header.
 		"""
 		stream.write("<region>\n")
-		for opstring in opstring_sorted(self.opstrings - region_exclude):
+		for opstring in opstring_sorted(self.opstrings() - region_exclude):
 			stream.write(opstring + '\n')
 		stream.write('\n')
 
@@ -176,8 +169,6 @@ class PercussionInstrument:
 	When importing from an SFZ, this class contains the regions that define the
 	sound of the instrument.
 	"""
-
-	key_opcodes = ['lokey', 'hikey', 'pitch_keycenter']
 
 	def __init__(self, pitch, regions, filename):
 		"""
@@ -217,7 +208,7 @@ class PercussionInstrument:
 			region = self.regions[0]
 			group_opstrings = set(
 				str(region.opcodes[key]) \
-				for key in self.key_opcodes \
+				for key in KEY_OPCODES \
 				if key in region.opcodes
 			)
 		region_exclude = global_opstrings | group_opstrings
@@ -225,13 +216,13 @@ class PercussionInstrument:
 		keyvals = [
 			opstring.split('=', 1)[1] \
 			for opstring in group_opstrings \
-			if opstring.split('=', 1)[0] in self.key_opcodes
+			if opstring.split('=', 1)[0] in KEY_OPCODES
 		]
 		if len(keyvals) == 3 and len(set(keyvals)) == 1:
 			group_opstrings = [
 				opstring \
 				for opstring in group_opstrings \
-				if opstring.split('=', 1)[0] not in self.key_opcodes
+				if opstring.split('=', 1)[0] not in KEY_OPCODES
 			]
 			group_opstrings.append(f'key={keyvals[0]}')
 		stream.write('<group>\n')
@@ -247,7 +238,7 @@ class PercussionInstrument:
 		Returns a set of all the string representation (including name and value) of
 		all the opcodes used in this Instrument.
 		"""
-		return reduce(or_, [region.opstrings \
+		return reduce(or_, [region.opstrings() \
 			for region in self.regions], set())
 
 	def common_opstrings(self):
@@ -255,7 +246,7 @@ class PercussionInstrument:
 		Returns a set of all the string representation (including name and value) of
 		all the identical opcodes used in every region in this Instrument.
 		"""
-		opstrings = [region.opstrings for region in self.regions]
+		opstrings = [region.opstrings() for region in self.regions]
 		return reduce(and_, opstrings) if opstrings else set()
 
 	def samples_used(self):
@@ -350,9 +341,9 @@ class PercussionGroup:
 			yield from instrument.samples()
 
 
-class Drumkit:
+class Drumkit(SFZ):
 	"""
-	Represents a set of percussion instruments organized by groups.
+	A special structure for an SFZ which organizes percussion instruments by groups.
 
 	Passing a filename to the constructor loads the given .sfz file and attaches
 	its regions to a PercussionInstrument. These are organized under
@@ -366,7 +357,7 @@ class Drumkit:
 		self.groups = { group_id:PercussionGroup(group_id) for group_id in GROUP_PITCHES }
 		self.filename = filename
 		if self.filename is None:
-			self.name = '[unnamed drumkit]'
+			self.name = '[unnamed Drumkit]'
 		else:
 			self.name = basename(filename)
 			sfz = SFZ(self.filename)
@@ -374,50 +365,6 @@ class Drumkit:
 				regions = list(sfz.regions_for(lokey=pitch, hikey=pitch))
 				if regions:
 					self.groups[group_id].append_instrument(pitch, regions, filename)
-
-	def save_as(self, filename, samples_mode = SAMPLES_ABSPATH):
-		"""
-		Save in SFZ format to the given filename.
-
-		"samples_mode" is a kitbash constant which defines how to render "sample"
-		opcodes. May be one of:
-
-			SAMPLES_ABSPATH		SAMPLES_RESOLVE		SAMPLES_COPY
-			SAMPLES_SYMLINK		SAMPLES_HARDLINK
-
-		"""
-		filename = abspath(filename)
-		target_sfz_dir = dirname(filename)
-		filetitle, ext = splitext(basename(filename))
-		try:
-			mkdir(target_sfz_dir)
-		except FileExistsError:
-			pass
-		if samples_mode == SAMPLES_ABSPATH:
-			for sample in self.samples():
-				sample.use_abspath()
-		elif samples_mode == SAMPLES_RESOLVE:
-			for sample in self.samples():
-				sample.resolve_from(target_sfz_dir)
-		else:
-			samples_path = filetitle + '-samples'
-			try:
-				mkdir(join(target_sfz_dir, samples_path))
-			except FileExistsError:
-				pass
-			for sample in self.samples():
-				try:
-					if samples_mode == SAMPLES_COPY:
-						sample.copy_to(target_sfz_dir, samples_path)
-					elif samples_mode == SAMPLES_SYMLINK:
-						sample.symlink_to(target_sfz_dir, samples_path)
-					elif samples_mode == SAMPLES_HARDLINK:
-						sample.hardlink_to(target_sfz_dir, samples_path)
-				except FileExistsError:
-					pass
-		with open(filename + '.sfz' if ext == '' else filename,
-			'w', encoding = 'utf-8') as fob:
-			self.write(fob)
 
 	def write(self, stream):
 		"""
@@ -464,23 +411,15 @@ class Drumkit:
 		group_id = PITCH_GROUPS[pitch]
 		del self.groups[group_id].instruments[pitch]
 
-	def opstrings_used(self):
-		"""
-		Returns a set of all the string representation (including name and value) of
-		all the opcodes used in this Drumkit
-		"""
-		return reduce(or_, [group.opstrings_used() \
-			for group in self.groups.values()], set())
-
 	def common_opstrings(self):
 		"""
 		Returns a set of all the string representation (including name and value) of
-		all the identical opcodes used in every region in this Drumki.
+		all the identical opcodes used in every region in this Drumkit.
 		"""
-		opstrings = [group.common_opstrings() for group in self.groups.values()]
+		sets = [group.common_opstrings() for group in self.groups.values()]
 		# Filter empty:
-		opstrings = [ used_opstrings for used_opstrings in opstrings if len(used_opstrings) ]
-		return reduce(and_, opstrings) if opstrings else set()
+		sets = [ set_ for set_ in sets if len(set_) ]
+		return reduce(and_, sets) if sets else set()
 
 	def samples(self):
 		"""

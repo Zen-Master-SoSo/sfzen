@@ -31,6 +31,7 @@ from sfzen.sfz_elems import (
 	Define,
 	Include
 )
+from sfzen.sort import midi_key_sort
 
 COMMENT_DIVIDER = '// ' + '-' * 76 + "\n"
 
@@ -39,6 +40,9 @@ SAMPLES_RESOLVE				= 1
 SAMPLES_COPY				= 2
 SAMPLES_SYMLINK				= 3
 SAMPLES_HARDLINK			= 4
+
+
+KEY_OPCODES = ['lokey', 'hikey', 'pitch_keycenter']
 
 
 class SFZXformer(Transformer):
@@ -201,8 +205,10 @@ class SFZ(_Header):
 		self.includes = []
 		self.parse_errors = []
 		if filename is None:
+			self.name = '[unnamed SFZ]'
 			self.basedir = None
 		else:
+			self.name = basename(filename)
 			self.basedir = dirname(self.filename) if basedir is None else basedir
 			if SFZ._parser is None:
 				cache_file = join(user_cache_dir(), 'sfzen')
@@ -236,9 +242,6 @@ class SFZ(_Header):
 			tb.tb_lineno
 		)
 		self.parse_errors.append(error)
-
-	def __repr__(self):
-		return 'SFZ "%s"' % basename(self.filename)
 
 	def inherited_opcodes(self):
 		return {}
@@ -326,18 +329,59 @@ class SFZ(_Header):
 		for sub in self._subheadings:
 			sub.write(stream)
 
+	def simplified(self):
+		"""
+		Returns an equivalent SFZ with common opcodes grouped, and opcodes using the
+		default value skipped.
+		"""
+		sfz = SFZ()
+		for region in [
+			self._clone_sample_region(sample) \
+			for sample in self.samples() ]:
+			sfz.append_subheader(region)
+		# Condense "lokey", "hikey", "pitch_keycenter"
+		for sub in sfz._subheadings:
+			key_related_values = [
+				opcode.value for opcode in sub.opcodes.values() \
+				if opcode.name in KEY_OPCODES
+			]
+			if len(key_related_values) == 3 and len(set(key_related_values)) == 1:
+				for opcode_name in KEY_OPCODES:
+					del sub._opcodes[opcode_name]
+				sub.append_opcode(Opcode('key', key_related_values[0], None))
+		# Remove loop-related opcodes for regions that are not looped:
+		for sub in sfz._subheadings:
+			sub.opcodes
+		# Sort in key order:
+		sfz._subheadings.sort(key = midi_key_sort)
+		# Filter global opstrings:
+		common_opstrings = sfz.common_opstrings()
+		if len(common_opstrings):
+			global_header = Global(None, None)
+			for tup in [ opstring.split('=', 1) for opstring in common_opstrings ]:
+				global_header.append_opcode(Opcode(tup[0], tup[1], None))
+				for sub in sfz._subheadings:
+					del sub._opcodes[tup[0]]
+
+			sfz._subheadings.insert(0, global_header)
+		return sfz
+
+	def _clone_sample_region(self, sample):
+		region = Region(None, None)
+		for opcode in sample.parent.inherited_opcodes().values():
+			region.append_opcode(opcode)
+		return region
+
 	def dump(self):
 		"""
 		Print (to stdout) a concise outline of this SFZ.
 		"""
-		self._dump(self, 0)
+		for elem, depth in self.walk():
+			print('  ' * depth, end="")
+			print(repr(elem))
 
-	def _dump(self, obj, indent):
-		print('  ' * indent, end="")
-		print(repr(obj))
-		if isinstance(obj, (_Header, SFZ)):
-			for sub in obj.subheadings:
-				self._dump(sub, indent + 1)
+	def __repr__(self):
+		return f'SFZ {self.filename}'
 
 
 #  end sfzen/__init__.py

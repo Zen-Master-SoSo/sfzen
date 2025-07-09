@@ -65,14 +65,34 @@ OPCODE_SORT_ORDER = [
 ]
 
 def opcode_sorted(opcodes):
+	"""
+	Sort a list of Opcode objects according to preferred OPCODE_SORT_ORDER.
+	"""
 	return sorted(opcodes, key = lambda opcode: \
 		OPCODE_SORT_ORDER.index(opcode.name) \
 		if opcode.name in OPCODE_SORT_ORDER else 1000)
 
-def name_sorted(opstrings):
-	return sorted(opstrings, key = lambda opstring: \
-		OPCODE_SORT_ORDER.index(opstring) \
-		if opstring in OPCODE_SORT_ORDER else 1000)
+def name_sorted(opcodes):
+	"""
+	Sort a list of strings (opcode names), according to preferred OPCODE_SORT_ORDER.
+	"""
+	return sorted(opcodes, key = lambda opcode: \
+		OPCODE_SORT_ORDER.index(opcode) \
+		if opcode in OPCODE_SORT_ORDER else 1000)
+
+def midi_key_sort(region):
+	"""
+	Provides a key to use for sorting a list of Regions based on "lokey", "hikey" values.
+	"""
+	opcodes = region.inherited_opcodes()
+	key = region.opcode('key')
+	if key is None:
+		lokey = region.opcode('lokey').value or 1
+		hikey = region.opcode('hikey').value or 127
+	else:
+		lokey = key.value
+		hikey = key.value
+	return lokey * 128 + hikey
 
 
 #  end sfzen/sort.py
