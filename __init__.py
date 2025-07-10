@@ -10,6 +10,7 @@ from os import mkdir
 from os.path import abspath, basename, dirname, join, splitext, exists
 from operator import or_
 from functools import reduce
+from collections import defaultdict
 from appdirs import user_cache_dir
 from lark import Lark, Transformer, v_args
 from lark.tree import Meta
@@ -43,7 +44,27 @@ SAMPLES_HARDLINK			= 4
 
 
 KEY_OPCODES = ['lokey', 'hikey', 'pitch_keycenter']
-
+LOOP_DEFINITION_OPCODES = [
+	'egN_loop',
+	'egN_loop_count',
+	'loop_count',
+	'loop_crossfade',
+	'loop_end',
+	'loop_length_onccN',
+	'loop_lengthccN',
+	'loop_mode',
+	'loop_start',
+	'loop_start_onccN',
+	'loop_startccN',
+	'loop_tune',
+	'loop_type',
+	'loopcount',
+	'loopend',
+	'loopmode',
+	'loopstart',
+	'looptune',
+	'looptype'
+]
 
 class SFZXformer(Transformer):
 	"""
@@ -351,18 +372,31 @@ class SFZ(_Header):
 				sub.append_opcode(Opcode('key', key_related_values[0], None))
 		# Remove loop-related opcodes for regions that are not looped:
 		for sub in sfz._subheadings:
-			sub.opcodes
+			loopmode = sub.opcode('loop_mode') or sub.opcode('loopmode')
+			if loopmode and loopmode.value == 'no_loop':
+				for opcode_name in LOOP_DEFINITION_OPCODES:
+					try:
+						del sub._opcodes[opcode_name]
+					except KeyError:
+						pass
 		# Sort in key order:
 		sfz._subheadings.sort(key = midi_key_sort)
 		# Filter global opstrings:
 		common_opstrings = sfz.common_opstrings()
+		global_header = None
 		if len(common_opstrings):
 			global_header = Global(None, None)
 			for tup in [ opstring.split('=', 1) for opstring in common_opstrings ]:
 				global_header.append_opcode(Opcode(tup[0], tup[1], None))
 				for sub in sfz._subheadings:
 					del sub._opcodes[tup[0]]
-
+			# Defer inserting global header until AFTER grouping!!!
+		# Group regions based on common key:
+		key_regions = defaultdict(list)
+		for sub in sfz._subheadings:
+			key_regions[sub.opcode('key')].append(sub)
+		# Deferred insert global header:
+		if global_header:
 			sfz._subheadings.insert(0, global_header)
 		return sfz
 

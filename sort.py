@@ -84,7 +84,6 @@ def midi_key_sort(region):
 	"""
 	Provides a key to use for sorting a list of Regions based on "lokey", "hikey" values.
 	"""
-	opcodes = region.inherited_opcodes()
 	key = region.opcode('key')
 	if key is None:
 		lokey = region.opcode('lokey').value or 1
