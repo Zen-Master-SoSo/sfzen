@@ -32,7 +32,7 @@ from sfzen.sfz_elems import (
 	Define,
 	Include
 )
-from sfzen.sort import midi_key_sort
+from sfzen.sort import midi_key_sort_key
 
 COMMENT_DIVIDER = '// ' + '-' * 76 + "\n"
 
@@ -355,49 +355,58 @@ class SFZ(_Header):
 		Returns an equivalent SFZ with common opcodes grouped, and opcodes using the
 		default value skipped.
 		"""
-		sfz = SFZ()
-		for region in [
+
+		regions = [
 			self._clone_sample_region(sample) \
-			for sample in self.samples() ]:
-			sfz.append_subheader(region)
+			for sample in self.samples()
+		]
+
 		# Condense "lokey", "hikey", "pitch_keycenter"
-		for sub in sfz._subheadings:
+		for region in regions:
 			key_related_values = [
-				opcode.value for opcode in sub.opcodes.values() \
+				opcode.value for opcode in region.opcodes.values() \
 				if opcode.name in KEY_OPCODES
 			]
 			if len(key_related_values) == 3 and len(set(key_related_values)) == 1:
 				for opcode_name in KEY_OPCODES:
-					del sub._opcodes[opcode_name]
-				sub.append_opcode(Opcode('key', key_related_values[0], None))
+					del region._opcodes[opcode_name]
+				region.append_opcode(Opcode('key', key_related_values[0], None))
+
 		# Remove loop-related opcodes for regions that are not looped:
-		for sub in sfz._subheadings:
-			loopmode = sub.opcode('loop_mode') or sub.opcode('loopmode')
+		for region in regions:
+			loopmode = region.opcode('loop_mode') or region.opcode('loopmode')
 			if loopmode and loopmode.value == 'no_loop':
 				for opcode_name in LOOP_DEFINITION_OPCODES:
 					try:
-						del sub._opcodes[opcode_name]
+						del region._opcodes[opcode_name]
 					except KeyError:
 						pass
-		# Sort in key order:
-		sfz._subheadings.sort(key = midi_key_sort)
+
 		# Filter global opstrings:
-		common_opstrings = sfz.common_opstrings()
 		global_header = None
+		common_opstrings = sfz.common_opstrings()
 		if len(common_opstrings):
 			global_header = Global(None, None)
 			for tup in [ opstring.split('=', 1) for opstring in common_opstrings ]:
 				global_header.append_opcode(Opcode(tup[0], tup[1], None))
-				for sub in sfz._subheadings:
-					del sub._opcodes[tup[0]]
+				for region in regions:
+					del region._opcodes[tup[0]]
 			# Defer inserting global header until AFTER grouping!!!
+
+		# Sort in key order:
+		regions.sort(key = midi_key_sort_key)
+
 		# Group regions based on common key:
-		key_regions = defaultdict(list)
-		for sub in sfz._subheadings:
-			key_regions[sub.opcode('key')].append(sub)
+		key_grouped_regions = defaultdict(list)
+		for region in regions:
+			key_grouped_regions[midi_key_sort_key(region)].append(region)
+
+		sfz = SFZ()
 		# Deferred insert global header:
 		if global_header:
-			sfz._subheadings.insert(0, global_header)
+			sfz.append_subheader(global_header)
+
+
 		return sfz
 
 	def _clone_sample_region(self, sample):
