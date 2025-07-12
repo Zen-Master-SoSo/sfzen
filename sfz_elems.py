@@ -92,6 +92,20 @@ class _Header(_SFZElement):
 		self._subheadings.append(subheading)
 		subheading.parent = self
 
+	@property
+	def opcodes(self):
+		"""
+		Returns a dictionary of Opcode ojects, whose keys are the Opcode's name.
+		"""
+		return self._opcodes
+
+	@property
+	def subheadings(self):
+		"""
+		Returns a list of headers contained in this _Header.
+		"""
+		return self._subheadings
+
 	def inherited_opcodes(self):
 		"""
 		Returns all the opcodes defined in this _Header with all opcodes defined in its
@@ -123,7 +137,7 @@ class _Header(_SFZElement):
 		all the identical opcodes used in every subheading in this _Header.
 		"""
 		if len(self._subheadings):
-			sets = [subheading.common_opstrings() for subheading in self._subheadings]
+			sets = [ subheading.common_opstrings() for subheading in self._subheadings ]
 			# At this point every element of the list is a set of opstrings, one per subheading.
 			# Some subheadings have NO common sets, filter these out before reducing to a final set:
 			sets = [ set_ for set_ in sets if len(set_) ]
@@ -155,13 +169,6 @@ class _Header(_SFZElement):
 		return set(self._opcodes.keys()) | reduce(or_, [heading.opcodes_used() \
 			for heading in self._subheadings], set())
 
-	@property
-	def opcodes(self):
-		"""
-		Returns a dictionary of Opcode ojects, whose keys are the Opcode's name.
-		"""
-		return self._opcodes
-
 	def regions(self):
 		"""
 		Returns all <region> headers contained by this _Header and all of its child
@@ -181,17 +188,11 @@ class _Header(_SFZElement):
 		for header in self._subheadings:
 			yield from header.samples()
 
-	@property
-	def subheadings(self):
-		"""
-		Returns a list of headers contained in this _Header.
-		"""
-		return self._subheadings
-
 	def walk(self, depth = 0):
 		"""
 		Generator which recusively yields every element contained in this _Header,
 		including opcodes and subheaders. Opcodes are yielded first, then subheaders.
+		Each iteration returns a tuple (_SFZElement, (int) depth)
 		"""
 		yield (self, depth)
 		depth += 1
@@ -205,8 +206,26 @@ class _Header(_SFZElement):
 		Returns (int) number of opcodes used in this _Header and all subheaders
 		"""
 		return sum(len(elem.opcodes.values()) \
-			for elem,_ in self.walk() \
+			for elem, _ in self.walk() \
 			if isinstance(elem, _Header))
+
+	def reduce_common_opcodes(self):
+		"""
+		Move common opcodes (name/value) from contained headers to this header.
+		"""
+		if len(self._subheadings):
+			common_opstrings = self.common_opstrings()
+			for tup in [ opstring.split('=', 1) for opstring in common_opstrings ]:
+				self.append_opcode(Opcode(tup[0], tup[1], None))
+				for sub in self._subheadings:
+					del sub._opcodes[tup[0]]
+
+	def remove_opcodes(self, opcode_list):
+		for elem, _ in self.walk():
+			if isinstance(elem, _Header):
+				elem._opcodes = { key:opcode \
+					for key, opcode in elem._opcodes.items() \
+					if key not in opcode_list }
 
 	def __str__(self):
 		return '<%s>' % type(self).__name__.lower()

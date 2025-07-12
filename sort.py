@@ -9,12 +9,12 @@ Provides functions used for sorting opcodes in a preferred order.
 OPCODE_SORT_ORDER = [
 	'lokey',
 	'hikey',
+	'pitch_keycenter',
 	'lovel',
 	'hivel',
 	'lochan',
 	'hichan',
 	'sample',
-	'pitch_keycenter',
 	'loop_mode',
 	'loop_start',
 	'loop_end',

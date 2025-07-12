@@ -273,6 +273,19 @@ class SFZ(_Header):
 		"""
 		return self._subheadings
 
+	def global_header(self):
+		"""
+		Returns the Global header from this SFZ; it one does not exist, creates it at
+		the beginning of the header list.
+		"""
+		for sub in self._subheadings:
+			if isinstance(sub, Global):
+				return sub
+		global_header = Global(None, None)
+		self._subheadings.insert(0, global_header)
+		global_header.parent = self
+		return global_header
+
 	def samples(self):
 		"""
 		Generator which yields a Sample object on each iteraration.
@@ -356,6 +369,8 @@ class SFZ(_Header):
 		default value skipped.
 		"""
 
+		simplified_sfz = SFZ()
+
 		regions = [
 			self._clone_sample_region(sample) \
 			for sample in self.samples()
@@ -382,17 +397,6 @@ class SFZ(_Header):
 					except KeyError:
 						pass
 
-		# Filter global opstrings:
-		global_header = None
-		common_opstrings = sfz.common_opstrings()
-		if len(common_opstrings):
-			global_header = Global(None, None)
-			for tup in [ opstring.split('=', 1) for opstring in common_opstrings ]:
-				global_header.append_opcode(Opcode(tup[0], tup[1], None))
-				for region in regions:
-					del region._opcodes[tup[0]]
-			# Defer inserting global header until AFTER grouping!!!
-
 		# Sort in key order:
 		regions.sort(key = midi_key_sort_key)
 
@@ -400,14 +404,36 @@ class SFZ(_Header):
 		key_grouped_regions = defaultdict(list)
 		for region in regions:
 			key_grouped_regions[midi_key_sort_key(region)].append(region)
+		for regions in key_grouped_regions.values():
+			if len(regions) > 1:
+				group = Group(None, None)
+				for region in regions:
+					group.append_subheader(region)
+				common_opstrings = group.common_opstrings()
+				if any(len(region._opcodes) > len(common_opstrings) for region in regions):
+					for tup in [ opstring.split('=', 1) for opstring in common_opstrings ]:
+						group.append_opcode(Opcode(tup[0], tup[1], None))
+						for region in regions:
+							del region._opcodes[tup[0]]
+					simplified_sfz.append_subheader(group)
+				else:
+					simplified_sfz.append_subheader(regions[0])
+			else:
+				simplified_sfz.append_subheader(regions[0])
 
-		sfz = SFZ()
-		# Deferred insert global header:
-		if global_header:
-			sfz.append_subheader(global_header)
+		# Filter global opstrings:
+		common_opstrings = simplified_sfz.common_opstrings()
+		if len(common_opstrings):
+			global_header = Global(None, None)
+			opstring_tuples = [ opstring.split('=', 1) \
+				for opstring in common_opstrings ]
+			for tup in opstring_tuples:
+				global_header.append_opcode(Opcode(tup[0], tup[1], None))
+			simplified_sfz.remove_opcodes([ tup[0] for tup in opstring_tuples ])
+			simplified_sfz._subheadings.insert(0, global_header)
+			global_header.parent = simplified_sfz
 
-
-		return sfz
+		return simplified_sfz
 
 	def _clone_sample_region(self, sample):
 		region = Region(None, None)
@@ -420,8 +446,7 @@ class SFZ(_Header):
 		Print (to stdout) a concise outline of this SFZ.
 		"""
 		for elem, depth in self.walk():
-			print('  ' * depth, end="")
-			print(repr(elem))
+			print('  ' * depth + repr(elem))
 
 	def __repr__(self):
 		return f'SFZ {self.filename}'
