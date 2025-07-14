@@ -43,7 +43,11 @@ SAMPLES_SYMLINK				= 3
 SAMPLES_HARDLINK			= 4
 
 
-KEY_OPCODES = ['lokey', 'hikey', 'pitch_keycenter']
+KEY_OPCODES = [
+	'lokey',
+	'hikey',
+	'pitch_keycenter'
+]
 LOOP_DEFINITION_OPCODES = [
 	'egN_loop',
 	'egN_loop_count',
@@ -127,7 +131,7 @@ class SFZXformer(Transformer):
 				logging.debug('Including "%s"', path)
 				try:
 					subsfz = SFZ(path, defines = self.sfz.defines, basedir = self.sfz.basedir, is_include = True)
-					for header in subsfz.subheadings:
+					for header in subsfz.subheaders:
 						while not self.current_header.may_contain(header):
 							self.current_header = self.current_header.parent
 						self.current_header.append_subheader(header)
@@ -221,7 +225,7 @@ class SFZ(_Header):
 		self.defines = defines
 		self.is_include = is_include
 		self._parent = None
-		self._subheadings = []
+		self._subheaders = []
 		self._opcodes = {}
 		self.includes = []
 		self.parse_errors = []
@@ -248,10 +252,6 @@ class SFZ(_Header):
 			raise RuntimeError("Opcode outside of header")
 		super().append_opcode(opcode)
 
-	def append_subheader(self, subheading):
-		self._subheadings.append(subheading)
-		subheading.parent = self
-
 	def append_parse_error(self, error, meta):
 		tb = error.__traceback__
 		logging.error('Parse error in %s line %d: %s "%s" in %s, line %s',
@@ -267,22 +267,16 @@ class SFZ(_Header):
 	def inherited_opcodes(self):
 		return {}
 
-	def headers(self):
-		"""
-		Returns a list of headers which are immediate children of this SFZ.
-		"""
-		return self._subheadings
-
 	def global_header(self):
 		"""
 		Returns the Global header from this SFZ; it one does not exist, creates it at
 		the beginning of the header list.
 		"""
-		for sub in self._subheadings:
+		for sub in self._subheaders:
 			if isinstance(sub, Global):
 				return sub
 		global_header = Global(None, None)
-		self._subheadings.insert(0, global_header)
+		self._subheaders.insert(0, global_header)
 		global_header.parent = self
 		return global_header
 
@@ -290,14 +284,14 @@ class SFZ(_Header):
 		"""
 		Generator which yields a Sample object on each iteraration.
 		"""
-		for header in self._subheadings:
+		for header in self._subheaders:
 			yield from header.samples()
 
 	def opcodes_used(self):
 		"""
 		Returns a set of the keys of all the opcodes used in this SFZ.
 		"""
-		return reduce(or_, [heading.opcodes_used() for heading in self._subheadings], set())
+		return reduce(or_, [heading.opcodes_used() for heading in self._subheaders], set())
 
 	def regions_for(self, key=None, lokey=None, hikey=None, lovel=None, hivel=None):
 		"""
@@ -360,7 +354,7 @@ class SFZ(_Header):
 		"stream" may be any file-like object, including sys.stdout.
 		"""
 		stream.write(f'{COMMENT_DIVIDER}// {self.filename}\n{COMMENT_DIVIDER}\n')
-		for sub in self._subheadings:
+		for sub in self._subheaders:
 			sub.write(stream)
 
 	def simplified(self):
@@ -417,7 +411,9 @@ class SFZ(_Header):
 							del region._opcodes[tup[0]]
 					simplified_sfz.append_subheader(group)
 				else:
-					simplified_sfz.append_subheader(regions[0])
+					logging.warning('All region opstrings are common')
+					for region in regions:
+						simplified_sfz.append_subheader(region)
 			else:
 				simplified_sfz.append_subheader(regions[0])
 
@@ -430,7 +426,7 @@ class SFZ(_Header):
 			for tup in opstring_tuples:
 				global_header.append_opcode(Opcode(tup[0], tup[1], None))
 			simplified_sfz.remove_opcodes([ tup[0] for tup in opstring_tuples ])
-			simplified_sfz._subheadings.insert(0, global_header)
+			simplified_sfz._subheaders.insert(0, global_header)
 			global_header.parent = simplified_sfz
 
 		return simplified_sfz

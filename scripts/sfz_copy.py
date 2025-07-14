@@ -48,7 +48,7 @@ def main():
 		p.error('<Target> is required when not --dry-run')
 	log_level = logging.DEBUG if options.verbose else logging.ERROR
 	log_format = "[%(filename)24s:%(lineno)4d] %(levelname)-8s %(message)s"
-	logging.basicConfig(stream = sys.stdout, level = log_level, format = log_format)
+	logging.basicConfig(level = log_level, format = log_format)
 	if options.abspath:
 		samples_mode = SAMPLES_ABSPATH
 	elif options.relative:

@@ -12,6 +12,7 @@ from os.path import abspath, exists, join, relpath
 from shutil import copy2 as copy
 from functools import lru_cache, cached_property, reduce
 from operator import and_, or_
+from midi_notes import NOTE_NUMBERS
 from sfzen.sort import opcode_sorted
 from sfzen.opcodes import OPCODES
 
@@ -68,7 +69,7 @@ class _Header(_SFZElement):
 
 	def __init__(self, _, meta):
 		super().__init__(meta)
-		self._subheadings = []
+		self._subheaders = []
 		self._opcodes = {}
 
 	def may_contain(self, _):
@@ -80,44 +81,47 @@ class _Header(_SFZElement):
 
 	def append_opcode(self, opcode):
 		"""
-		Function used during parsing.
+		Append an opcode to this _Header.
 		"""
 		self._opcodes[opcode.name] = opcode
 		opcode.parent = self
 
-	def append_subheader(self, subheading):
+	def append_subheader(self, subheader):
 		"""
-		Function used during parsing.
+		Append a subheader to this _Header
 		"""
-		self._subheadings.append(subheading)
-		subheading.parent = self
+		self._subheaders.append(subheader)
+		subheader.parent = self
 
 	@property
 	def opcodes(self):
 		"""
-		Returns a dictionary of Opcode ojects, whose keys are the Opcode's name.
+		Returns a dictionary of Opcode ojects.
+		Returns dict { opcode_name:Opcode }
 		"""
 		return self._opcodes
 
 	@property
-	def subheadings(self):
+	def subheaders(self):
 		"""
 		Returns a list of headers contained in this _Header.
 		"""
-		return self._subheadings
+		return self._subheaders
 
 	def inherited_opcodes(self):
 		"""
 		Returns all the opcodes defined in this _Header with all opcodes defined in its
-		parent _Header, recursively. Opcodes defined in this _Header override parent's.
+		parent _Header, recursively. Opcodes defined in this _Header override parents'.
+		Returns dict { opcode_name:Opcode }
 		"""
-		return dict(self._parent.inherited_opcodes(), **self._opcodes)
+		return self._opcodes if self._parent is None \
+			else dict(self._parent.inherited_opcodes(), **self._opcodes)
 
 	def opstrings(self):
 		"""
 		Returns a set of all the string representation (including name and value) of
 		all the opcodes which are used by this _Header. This does NOT include opcodes
-		used by subheadings beneath this _Header.
+		used by subheaders beneath this _Header.
 		"""
 		return set(str(opcode) for opcode in self._opcodes.values())
 
@@ -127,23 +131,23 @@ class _Header(_SFZElement):
 		all the opcodes used in this _Header, including opcodes from _Headers contained
 		in this _Header.
 		"""
-		opstrings = [sub.opstrings_used() for sub in self._subheadings]
+		opstrings = [sub.opstrings_used() for sub in self._subheaders]
 		opstrings.append(self.opstrings())
 		return reduce(or_, opstrings, set())
 
 	def common_opstrings(self):
 		"""
 		Returns a set of all the string representation (including name and value) of
-		all the identical opcodes used in every subheading in this _Header.
+		all the identical opcodes used in every subheader in this _Header.
 		"""
-		if len(self._subheadings):
-			sets = [ subheading.common_opstrings() for subheading in self._subheadings ]
-			# At this point every element of the list is a set of opstrings, one per subheading.
-			# Some subheadings have NO common sets, filter these out before reducing to a final set:
+		if len(self._subheaders):
+			sets = [ subheader.common_opstrings() for subheader in self._subheaders ]
+			# At this point every element of the list is a set of opstrings, one per subheader.
+			# Some subheaders have NO common sets, filter these out before reducing to a final set:
 			sets = [ set_ for set_ in sets if len(set_) ]
 			# Reduce to a single set, or return an empty set if all were empty.
 			return reduce(and_, sets) if sets else set()
-		return self.opstrings()
+		return set(str(opcode) for opcode in self.inherited_opcodes().values())
 
 	def uses_opstring(self, opstring):
 		"""
@@ -167,14 +171,14 @@ class _Header(_SFZElement):
 		Returns a set of the keys of all the opcodes used in this _Header.
 		"""
 		return set(self._opcodes.keys()) | reduce(or_, [heading.opcodes_used() \
-			for heading in self._subheadings], set())
+			for heading in self._subheaders], set())
 
 	def regions(self):
 		"""
 		Returns all <region> headers contained by this _Header and all of its child
 		headers.
 		"""
-		for sub in self._subheadings:
+		for sub in self._subheaders:
 			if isinstance(sub, Region):
 				yield sub
 			yield from sub.regions()
@@ -185,7 +189,7 @@ class _Header(_SFZElement):
 		"""
 		if 'sample' in self._opcodes:
 			yield self._opcodes['sample']
-		for header in self._subheadings:
+		for header in self._subheaders:
 			yield from header.samples()
 
 	def walk(self, depth = 0):
@@ -198,7 +202,7 @@ class _Header(_SFZElement):
 		depth += 1
 		for opcode in self._opcodes.values():
 			yield (opcode, depth)
-		for sub in self._subheadings:
+		for sub in self._subheaders:
 			yield from sub.walk(depth)
 
 	def opcode_count(self):
@@ -213,11 +217,11 @@ class _Header(_SFZElement):
 		"""
 		Move common opcodes (name/value) from contained headers to this header.
 		"""
-		if len(self._subheadings):
+		if len(self._subheaders):
 			common_opstrings = self.common_opstrings()
 			for tup in [ opstring.split('=', 1) for opstring in common_opstrings ]:
 				self.append_opcode(Opcode(tup[0], tup[1], None))
-				for sub in self._subheadings:
+				for sub in self._subheaders:
 					del sub._opcodes[tup[0]]
 
 	def remove_opcodes(self, opcode_list):
@@ -245,8 +249,8 @@ class _Header(_SFZElement):
 			for op in opcode_sorted(opcodes):
 				op.write(stream)
 			stream.write("\n")
-		if self._subheadings:
-			for sub in self._subheadings:
+		if self._subheaders:
+			for sub in self._subheaders:
 				sub.write(stream)
 
 
@@ -380,7 +384,13 @@ class Opcode(_SFZElement):
 		if self.type is float:
 			return float(self._parsed_value)
 		if self.type == int:
-			return int(self._parsed_value)
+			try:
+				return int(self._parsed_value)
+			except ValueError as err:
+				if self._parsed_value.upper() in NOTE_NUMBERS:
+					logging.warning('Converting %s to midi note number', self._parsed_value)
+					return NOTE_NUMBERS[self._parsed_value.upper()]
+				raise err
 		return self._parsed_value
 
 	@cached_property
@@ -692,7 +702,7 @@ def validation_rule(opcode_name):
 @lru_cache
 def data_type(opcode_name):
 	"""
-	Normalizes a "_ccN" opcode opcode_name and returns the data type
+	Normalizes an opcode_name and returns the data type.
 	"""
 	definition = opcode_definition(opcode_name)
 	if definition is None:
@@ -722,7 +732,7 @@ def modulates(opcode_name):
 @lru_cache
 def opcode_definition(opcode_name):
 	"""
-	Normalizes a "_ccN" opcode opcode_name and returns the matching opcode definition.
+	Normalizes an opcode_name and returns the matching opcode definition.
 	"""
 	opcode_name = normal_opcode(opcode_name)
 	return None if opcode_name is None else OPCODES[opcode_name]
