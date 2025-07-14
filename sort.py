@@ -80,7 +80,7 @@ def name_sorted(opcodes):
 		OPCODE_SORT_ORDER.index(opcode) \
 		if opcode in OPCODE_SORT_ORDER else 1000)
 
-def midi_key_sort_key(region):
+def midi_note_sort_key(region):
 	"""
 	Provides a key to use for sorting a list of Regions based on "lokey", "hikey" values.
 	"""

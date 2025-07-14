@@ -12,6 +12,7 @@ from os.path import abspath, exists, join, relpath
 from shutil import copy2 as copy
 from functools import lru_cache, cached_property, reduce
 from operator import and_, or_
+from collections import defaultdict
 from midi_notes import NOTE_NUMBERS
 from sfzen.sort import opcode_sorted
 from sfzen.opcodes import OPCODES
@@ -128,8 +129,7 @@ class _Header(_SFZElement):
 	def opstrings_used(self):
 		"""
 		Returns a set of all the string representation (including name and value) of
-		all the opcodes used in this _Header, including opcodes from _Headers contained
-		in this _Header.
+		all the opcodes used in this _Header, and any subheaders beneath this _Header.
 		"""
 		opstrings = [sub.opstrings_used() for sub in self._subheaders]
 		opstrings.append(self.opstrings())
@@ -141,7 +141,7 @@ class _Header(_SFZElement):
 		all the identical opcodes used in every subheader in this _Header.
 		"""
 		if len(self._subheaders):
-			sets = [ subheader.common_opstrings() for subheader in self._subheaders ]
+			sets = [ sub.common_opstrings() for sub in self._subheaders ]
 			# At this point every element of the list is a set of opstrings, one per subheader.
 			# Some subheaders have NO common sets, filter these out before reducing to a final set:
 			sets = [ set_ for set_ in sets if len(set_) ]
@@ -168,10 +168,11 @@ class _Header(_SFZElement):
 
 	def opcodes_used(self):
 		"""
-		Returns a set of the keys of all the opcodes used in this _Header.
+		Returns a set of the keys of all the opcodes used in this _Header and all of
+		its subheaders.
 		"""
-		return set(self._opcodes.keys()) | reduce(or_, [heading.opcodes_used() \
-			for heading in self._subheaders], set())
+		return set(self._opcodes.keys()) | reduce(or_, [sub.opcodes_used() \
+			for sub in self._subheaders], set())
 
 	def regions(self):
 		"""
@@ -189,8 +190,8 @@ class _Header(_SFZElement):
 		"""
 		if 'sample' in self._opcodes:
 			yield self._opcodes['sample']
-		for header in self._subheaders:
-			yield from header.samples()
+		for sub in self._subheaders:
+			yield from sub.samples()
 
 	def walk(self, depth = 0):
 		"""

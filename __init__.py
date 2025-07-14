@@ -32,7 +32,7 @@ from sfzen.sfz_elems import (
 	Define,
 	Include
 )
-from sfzen.sort import midi_key_sort_key
+from sfzen.sort import midi_note_sort_key
 
 COMMENT_DIVIDER = '// ' + '-' * 76 + "\n"
 
@@ -42,6 +42,9 @@ SAMPLES_COPY				= 2
 SAMPLES_SYMLINK				= 3
 SAMPLES_HARDLINK			= 4
 
+GLOBALIZE_NONE				= 0
+GLOBALIZE_NUMEROUS			= 1
+GLOBALIZE_COMMON			= 2
 
 KEY_OPCODES = [
 	'lokey',
@@ -284,14 +287,14 @@ class SFZ(_Header):
 		"""
 		Generator which yields a Sample object on each iteraration.
 		"""
-		for header in self._subheaders:
-			yield from header.samples()
+		for sub in self._subheaders:
+			yield from sub.samples()
 
 	def opcodes_used(self):
 		"""
 		Returns a set of the keys of all the opcodes used in this SFZ.
 		"""
-		return reduce(or_, [heading.opcodes_used() for heading in self._subheaders], set())
+		return reduce(or_, [sub.opcodes_used() for sub in self._subheaders], set())
 
 	def regions_for(self, key=None, lokey=None, hikey=None, lovel=None, hivel=None):
 		"""
@@ -357,13 +360,14 @@ class SFZ(_Header):
 		for sub in self._subheaders:
 			sub.write(stream)
 
-	def simplified(self):
+	def simplified(self, globalize_mode = GLOBALIZE_NUMEROUS):
 		"""
 		Returns an equivalent SFZ with common opcodes grouped, and opcodes using the
 		default value skipped.
 		"""
 
 		simplified_sfz = SFZ()
+		global_header = Global(None, None)
 
 		regions = [
 			self._clone_sample_region(sample) \
@@ -391,13 +395,31 @@ class SFZ(_Header):
 					except KeyError:
 						pass
 
+		# Place opcodes which have the same value in a majority of regions
+		# into the global header:
+		if globalize_mode == GLOBALIZE_NUMEROUS:
+			opstring_counts = defaultdict(int)
+			min_count = round(len(regions) / 2) - 1
+			for region in regions:
+				for opstring in region.opstrings():
+					opstring_counts[opstring] += 1
+			common_opstrings = [
+				opstring for opstring, count in opstring_counts.items() \
+				if count >= min_count ]
+			for opstring in common_opstrings:
+				opcode, value = opstring.split('=', 1)
+				for region in regions:
+					if opcode in region._opcodes and str(region._opcodes[opcode]) == opstring:
+						del region._opcodes[opcode]
+				global_header.append_opcode(Opcode(opcode, value, None))
+
 		# Sort in key order:
-		regions.sort(key = midi_key_sort_key)
+		regions.sort(key = midi_note_sort_key)
 
 		# Group regions based on common key:
 		key_grouped_regions = defaultdict(list)
 		for region in regions:
-			key_grouped_regions[midi_key_sort_key(region)].append(region)
+			key_grouped_regions[midi_note_sort_key(region)].append(region)
 		for regions in key_grouped_regions.values():
 			if len(regions) > 1:
 				group = Group(None, None)
@@ -412,20 +434,21 @@ class SFZ(_Header):
 					simplified_sfz.append_subheader(group)
 				else:
 					logging.warning('All region opstrings are common')
-					for region in regions:
-						simplified_sfz.append_subheader(region)
+					simplified_sfz.append_subheader(regions[0])
 			else:
 				simplified_sfz.append_subheader(regions[0])
 
-		# Filter global opstrings:
-		common_opstrings = simplified_sfz.common_opstrings()
-		if len(common_opstrings):
-			global_header = Global(None, None)
-			opstring_tuples = [ opstring.split('=', 1) \
-				for opstring in common_opstrings ]
-			for tup in opstring_tuples:
-				global_header.append_opcode(Opcode(tup[0], tup[1], None))
-			simplified_sfz.remove_opcodes([ tup[0] for tup in opstring_tuples ])
+		if globalize_mode == GLOBALIZE_COMMON:
+			# Filter global opstrings:
+			common_opstrings = simplified_sfz.common_opstrings()
+			if len(common_opstrings):
+				opstring_tuples = [ opstring.split('=', 1) \
+					for opstring in common_opstrings ]
+				for tup in opstring_tuples:
+					global_header.append_opcode(Opcode(tup[0], tup[1], None))
+				simplified_sfz.remove_opcodes([ tup[0] for tup in opstring_tuples ])
+
+		if len(global_header._opcodes):
 			simplified_sfz._subheaders.insert(0, global_header)
 			global_header.parent = simplified_sfz
 
