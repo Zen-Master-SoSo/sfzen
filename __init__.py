@@ -72,6 +72,23 @@ LOOP_DEFINITION_OPCODES = [
 	'looptune',
 	'looptype'
 ]
+SAMPLE_UNIT_OPCODES = [
+	'delay_samples',
+	'delay_samples_onccN',
+	'end',
+	'loop_end',
+	'loop_length_onccN',
+	'loop_lengthccN',
+	'loop_start',
+	'loop_start_onccN',
+	'loop_startccN',
+	'loopend',
+	'loopstart',
+	'offset',
+	'offset_ccN',
+	'offset_onccN',
+	'offset_random'
+]
 
 class SFZXformer(Transformer):
 	"""
@@ -165,13 +182,9 @@ class SFZXformer(Transformer):
 						logging.error('Invalid opcode inside velocity curve definition')
 			else:
 				opname = self.replace_defs(toks[0].value.lower())
-				if opname == 'sample':
-					self.current_header.append_opcode(Sample(
-						opname, self.replace_defs(toks[1].value),
-						meta, self.sfz.basedir))
-				else:
-					self.current_header.append_opcode(Opcode(
-						opname, self.replace_defs(toks[1].value), meta))
+				self.current_header.append_opcode(Opcode(
+					opname, self.replace_defs(toks[1].value),
+					meta, self.sfz.basedir))
 		except Exception as e:
 			self.sfz.append_parse_error(e, meta)
 
@@ -367,6 +380,7 @@ class SFZ(_Header):
 		"""
 
 		simplified_sfz = SFZ()
+		simplified_sfz.basedir = self.basedir
 		global_header = Global(None, None)
 
 		regions = [
@@ -403,15 +417,13 @@ class SFZ(_Header):
 			for region in regions:
 				for opstring in region.opstrings():
 					opstring_counts[opstring] += 1
-			common_opstrings = [
-				opstring for opstring, count in opstring_counts.items() \
-				if count >= min_count ]
-			for opstring in common_opstrings:
-				opcode, value = opstring.split('=', 1)
-				for region in regions:
-					if opcode in region._opcodes and str(region._opcodes[opcode]) == opstring:
-						del region._opcodes[opcode]
-				global_header.append_opcode(Opcode(opcode, value, None))
+			for opstring, count in opstring_counts.items():
+				if count >= min_count:
+					opcode, value = opstring.split('=', 1)
+					for region in regions:
+						if opcode in region._opcodes and str(region._opcodes[opcode]) == opstring:
+							del region._opcodes[opcode]
+					global_header.append_opcode(Opcode(opcode, value))
 
 		# Sort in key order:
 		regions.sort(key = midi_note_sort_key)
@@ -428,7 +440,7 @@ class SFZ(_Header):
 				common_opstrings = group.common_opstrings()
 				if any(len(region._opcodes) > len(common_opstrings) for region in regions):
 					for tup in [ opstring.split('=', 1) for opstring in common_opstrings ]:
-						group.append_opcode(Opcode(tup[0], tup[1], None))
+						group.append_opcode(Opcode(tup[0], tup[1]))
 						for region in regions:
 							del region._opcodes[tup[0]]
 					simplified_sfz.append_subheader(group)
@@ -445,12 +457,17 @@ class SFZ(_Header):
 				opstring_tuples = [ opstring.split('=', 1) \
 					for opstring in common_opstrings ]
 				for tup in opstring_tuples:
-					global_header.append_opcode(Opcode(tup[0], tup[1], None))
+					global_header.append_opcode(Opcode(tup[0], tup[1]))
 				simplified_sfz.remove_opcodes([ tup[0] for tup in opstring_tuples ])
 
 		if len(global_header._opcodes):
 			simplified_sfz._subheaders.insert(0, global_header)
 			global_header.parent = simplified_sfz
+
+		# Give "Sample" opcodes a basedir for abspath function:
+		for elem,_ in simplified_sfz.walk():
+			if isinstance(elem, Sample):
+				elem.basedir = self.basedir
 
 		return simplified_sfz
 

@@ -131,8 +131,7 @@ def pitch_id_tuple(pitch_or_id):
 
 class Region(SFZRegion):
 	"""
-	A representation of an SFZ <region> header, extending the Region class from
-	sfzen in order to make it mutable.
+	A representation of an SFZ <region> header.
 
 	Note that when a Drumkit Region is imported from an SFZ or another Drumkit,
 	opcodes from the source region as well as opcodes inherited from container
@@ -141,7 +140,7 @@ class Region(SFZRegion):
 	"""
 
 	def __init__(self, source_region, source_filename):
-		self.subheaders = []
+		self._subheaders = []
 		self._opcodes = source_region.inherited_opcodes()
 		self.filename = source_filename
 		self.line = source_region.line

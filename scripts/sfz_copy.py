@@ -43,7 +43,7 @@ def main():
 	"""
 	options = p.parse_args()
 	if not os.path.isfile(options.Source):
-		p.exit(f'"{options.Source[0]}" is not a file')
+		p.exit(f'"{options.Source}" is not a file')
 	if not options.Target and not options.dry_run:
 		p.error('<Target> is required when not --dry-run')
 	log_level = logging.DEBUG if options.verbose else logging.ERROR

@@ -10,7 +10,7 @@ import re, logging
 from os import symlink, link, sep as path_separator
 from os.path import abspath, exists, join, relpath
 from shutil import copy2 as copy
-from functools import lru_cache, cached_property, reduce
+from functools import cache, cached_property, reduce
 from operator import and_, or_
 from collections import defaultdict
 from midi_notes import NOTE_NUMBERS
@@ -28,7 +28,6 @@ class _SFZElement:
 	"""
 
 	def __init__(self, meta):
-		typ = type(self).__name__
 		if meta is None:
 			self.line = None
 			self.column = None
@@ -221,7 +220,7 @@ class _Header(_SFZElement):
 		if len(self._subheaders):
 			common_opstrings = self.common_opstrings()
 			for tup in [ opstring.split('=', 1) for opstring in common_opstrings ]:
-				self.append_opcode(Opcode(tup[0], tup[1], None))
+				self.append_opcode(Opcode(tup[0], tup[1]))
 				for sub in self._subheaders:
 					del sub._opcodes[tup[0]]
 
@@ -372,27 +371,38 @@ class Opcode(_SFZElement):
 	Represents an SFZ opcode. Created by Lark transformer when importing SFZ.
 	"""
 
-	def __init__(self, name, value, meta):
+	def __new__(self, name, value, meta = None, basedir = None):
+		return super().__new__(Sample) if name == 'sample' else super().__new__(Opcode)
+
+	def __init__(self, name, value, meta = None, *_):
 		super().__init__(meta)
 		self.name = name
-		self._parsed_value = value
+		self.value = value
 
-	@cached_property
+	@property
 	def value(self):
 		"""
 		Returns the value as the type defined in the opcode definition.
 		"""
+		return self._value
+
+	@value.setter
+	def value(self, value):
+		"""
+		Converts the given value to the type defined in the opcode definition.
+		"""
 		if self.type is float:
-			return float(self._parsed_value)
-		if self.type == int:
+			self._value = float(value)
+		elif self.type == int:
 			try:
-				return int(self._parsed_value)
+				self._value = int(value)
 			except ValueError as err:
-				if self._parsed_value.upper() in NOTE_NUMBERS:
-					logging.warning('Converting %s to midi note number', self._parsed_value)
-					return NOTE_NUMBERS[self._parsed_value.upper()]
+				if value.upper() in NOTE_NUMBERS:
+					logging.warning('Converting %s to midi note number', value)
+					self._value = NOTE_NUMBERS[value.upper()]
 				raise err
-		return self._parsed_value
+		else:
+			self._value = value
 
 	@cached_property
 	def type(self):
@@ -444,7 +454,7 @@ class Opcode(_SFZElement):
 			else self.definition['value'][key]
 
 	def __str__(self):
-		return '%s=%s' % (self.name, self._parsed_value)
+		return '%s=%s' % (self.name, self._value)
 
 	def __repr__(self):
 		return f'Opcode {self}'
@@ -464,38 +474,37 @@ class Sample(Opcode):
 
 	RE_PATH_DIVIDER = '[\\\/]'
 
-	def __init__(self, name, value, meta, basedir):
+	def __init__(self, name, value, meta = None, basedir = None):
 		"""
-		When instantiating a Sample, the "name" and "_parsed_value" of the given path
+		When instantiating a Sample, the "name" and "_value" of the given path
 		is set in Opcode.__init__(). Afterwards, the "path" of the Sample may be
 		manipulated without destroying the initial value.
 		"""
 		super().__init__(name, value, meta)
-		self.path = value
 		self.basedir = basedir
 
-	@cached_property
-	def path_parts(self):
+	@property
+	def _path_parts(self):
 		"""
 		Splits the directory / filenames of the parsed value of this opcode
 		Returns list of str
 		"""
-		return re.split(self.RE_PATH_DIVIDER, self._parsed_value)
+		return re.split(self.RE_PATH_DIVIDER, self._value)
 
-	@cached_property
+	@property
 	def abspath(self):
 		"""
 		Returns (str) the absolute path to the sample
 		"""
-		path = path_separator + join(*self.path_parts)
-		return path if exists(path) else abspath(join(self.basedir, *self.path_parts))
+		path = path_separator + join(*self._path_parts)
+		return path if exists(path) else abspath(join(self.basedir, *self._path_parts))
 
-	@cached_property
+	@property
 	def basename(self):
 		"""
 		Returns (str) the basename of the sample
 		"""
-		return self.path_parts[-1]
+		return self._path_parts[-1]
 
 	def exists(self):
 		"""
@@ -507,7 +516,7 @@ class Sample(Opcode):
 		"""
 		Directs this Sample to use an absolute path when writing .sfz
 		"""
-		self.path = self.abspath
+		self._value = self.abspath
 
 	def resolve_from(self, sfz_directory):
 		"""
@@ -515,7 +524,7 @@ class Sample(Opcode):
 
 		"sfz_directory" is the directory in which the .sfz file is to be written.
 		"""
-		self.path = relpath(self.abspath, join(sfz_directory, self.basename))
+		self._value = relpath(self.abspath, join(sfz_directory, self.basename))
 
 	def copy_to(self, sfz_directory, samples_path):
 		"""
@@ -564,11 +573,8 @@ class Sample(Opcode):
 		"samples_path" must be a path relative the directory in which the .sfz
 		file is to be written.
 		"""
-		self.path = join(samples_path, self.basename)
+		self._value = join(samples_path, self.basename)
 		return join(sfz_directory, samples_path, self.basename)
-
-	def __str__(self):
-		return 'sample=%s' % self.path
 
 
 class Define(_Modifier):
@@ -663,7 +669,7 @@ class MinValidator(_Validator):
 		return self.lowval <= value
 
 
-@lru_cache
+@cache
 def validator_for(opcode_name):
 	"""
 	Returns a class which extends _Validator
@@ -683,7 +689,7 @@ def validator_for(opcode_name):
 		return MinValidator.from_rule(match.group(2), type_)
 	return AnyValidator()
 
-@lru_cache
+@cache
 def validation_rule(opcode_name):
 	definition = opcode_definition(opcode_name)
 	if definition is None:
@@ -700,7 +706,7 @@ def validation_rule(opcode_name):
 		if match.group(1) == 'Alias' \
 		else match.group(0)
 
-@lru_cache
+@cache
 def data_type(opcode_name):
 	"""
 	Normalizes an opcode_name and returns the data type.
@@ -719,7 +725,7 @@ def data_type(opcode_name):
 		return str
 	raise Exception("unknown type: " + definition["value"]["type"])
 
-@lru_cache
+@cache
 def modulates(opcode_name):
 	"""
 	Returns the name of the opcode that the given opcode modulates, if applicable.
@@ -730,7 +736,7 @@ def modulates(opcode_name):
 	except KeyError:
 		return None
 
-@lru_cache
+@cache
 def opcode_definition(opcode_name):
 	"""
 	Normalizes an opcode_name and returns the matching opcode definition.
@@ -738,7 +744,7 @@ def opcode_definition(opcode_name):
 	opcode_name = normal_opcode(opcode_name)
 	return None if opcode_name is None else OPCODES[opcode_name]
 
-@lru_cache
+@cache
 def normal_opcode(opcode_name, follow_aliases = True):
 	"""
 	Normalizes a "_ccN" opcode opcode_name.
@@ -780,7 +786,7 @@ def normal_opcode(opcode_name, follow_aliases = True):
 	logging.warning('Could not find opcode "%s"', opcode_name)
 	return None
 
-
+@cache
 def aliases(opcode_name, only_alias = False):
 	"""
 	Returns the opcode which the given opcode aliases, (if it does).
