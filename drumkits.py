@@ -6,23 +6,14 @@
 """
 Provides Drumkit SFZ wrapper which allows import / copy operations.
 """
-from os import mkdir
-from os.path import abspath, basename, dirname, join, splitext
+from os.path import basename
 from copy import deepcopy
-from functools import reduce, cached_property
+from functools import reduce
 from operator import and_, or_
 from midi_notes import Note, MIDI_DRUM_IDS, MIDI_DRUM_PITCHES, MIDI_DRUM_NAMES
-from sfzen import COMMENT_DIVIDER
-from sfzen import SFZ, KEY_OPCODES
+from sfzen import COMMENT_DIVIDER, SFZ, KEY_OPCODES
 from sfzen.sort import OPCODE_SORT_ORDER
 from sfzen.sfz_elems import Region as SFZRegion
-from sfzen import (
-	SAMPLES_ABSPATH,
-	SAMPLES_RESOLVE,
-	SAMPLES_COPY,
-	SAMPLES_SYMLINK,
-	SAMPLES_HARDLINK
-)
 
 # -----------------------------------------------------------------
 # constants

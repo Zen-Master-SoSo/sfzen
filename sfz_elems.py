@@ -9,10 +9,9 @@ All of these classes are constructed from a lark parser tree Token.
 import re, logging
 from os import symlink, link, sep as path_separator
 from os.path import abspath, exists, join, relpath
-from shutil import copy2 as copy
+from shutil import move, copy2 as copy
 from functools import cache, cached_property, reduce
 from operator import and_, or_
-from collections import defaultdict
 from midi_notes import NOTE_NUMBERS
 from sfzen.sort import opcode_sorted
 from sfzen.opcodes import OPCODES
@@ -139,7 +138,7 @@ class _Header(_SFZElement):
 		Returns a set of all the string representation (including name and value) of
 		all the identical opcodes used in every subheader in this _Header.
 		"""
-		if len(self._subheaders):
+		if self._subheaders:
 			sets = [ sub.common_opstrings() for sub in self._subheaders ]
 			# At this point every element of the list is a set of opstrings, one per subheader.
 			# Some subheaders have NO common sets, filter these out before reducing to a final set:
@@ -217,7 +216,7 @@ class _Header(_SFZElement):
 		"""
 		Move common opcodes (name/value) from contained headers to this header.
 		"""
-		if len(self._subheaders):
+		if self._subheaders:
 			common_opstrings = self.common_opstrings()
 			for tup in [ opstring.split('=', 1) for opstring in common_opstrings ]:
 				self.append_opcode(Opcode(tup[0], tup[1]))
@@ -263,7 +262,7 @@ class Global(_Header):
 	Represents an SFZ Global header. Created by Lark transformer when importing SFZ.
 	"""
 
-	def may_contain(self, header):
+	def may_contain(self, _):
 		return True
 
 
@@ -371,7 +370,7 @@ class Opcode(_SFZElement):
 	Represents an SFZ opcode. Created by Lark transformer when importing SFZ.
 	"""
 
-	def __new__(self, name, value, meta = None, basedir = None):
+	def __new__(cls, name, value, meta = None, basedir = None):
 		return super().__new__(Sample) if name == 'sample' else super().__new__(Opcode)
 
 	def __init__(self, name, value, meta = None, *_):
@@ -538,6 +537,18 @@ class Sample(Opcode):
 		"""
 		copy(self.abspath, self._fix_to_samples_dir(sfz_directory, samples_path))
 
+	def move_to(self, sfz_directory, samples_path):
+		"""
+		Moves the source sample to a new location and sets the value of this "sample"
+		opcode to point to the new location.
+
+		"sfz_directory" is the directory in which the .sfz file is to be written.
+
+		"samples_path" must be a path relative the directory in which the .sfz
+		file is to be written.
+		"""
+		move(self.abspath, self._fix_to_samples_dir(sfz_directory, samples_path))
+
 	def symlink_to(self, sfz_directory, samples_path):
 		"""
 		Symlinks the source sample in a new samples directory and sets the value of
@@ -626,7 +637,7 @@ class ChoiceValidator(_Validator):
 		self.type = type_
 
 	def is_valid(self, value, validate_type = True):
-		if validate_type and type(value) != self.type:
+		if validate_type and not isinstance(value, self.type):
 			return False
 		return value in self.choices
 
@@ -646,9 +657,9 @@ class RangeValidator(_Validator):
 		self.type = type_
 
 	def is_valid(self, value, validate_type = True):
-		if validate_type and type(value) != self.type:
+		if validate_type and not isinstance(value, self.type):
 			return False
-		return self.lowval <= value <= self.hival
+		return self.lowval <= value <= self.highval
 
 
 class MinValidator(_Validator):
@@ -664,7 +675,7 @@ class MinValidator(_Validator):
 		self.type = type_
 
 	def is_valid(self, value, validate_type = True):
-		if validate_type and type(value) != self.type:
+		if validate_type and not isinstance(value, self.type):
 			return False
 		return self.lowval <= value
 

@@ -39,8 +39,9 @@ COMMENT_DIVIDER = '// ' + '-' * 76 + "\n"
 SAMPLES_ABSPATH				= 0
 SAMPLES_RESOLVE				= 1
 SAMPLES_COPY				= 2
-SAMPLES_SYMLINK				= 3
-SAMPLES_HARDLINK			= 4
+SAMPLES_MOVE				= 3
+SAMPLES_SYMLINK				= 4
+SAMPLES_HARDLINK			= 5
 
 GLOBALIZE_NONE				= 0
 GLOBALIZE_NUMEROUS			= 1
@@ -260,7 +261,7 @@ class SFZ(_Header):
 			xformer = SFZXformer(self)
 			xformer.transform(tree)
 
-	def may_contain(self, header):
+	def may_contain(self, _):
 		return True
 
 	def append_opcode(self, opcode):
@@ -328,7 +329,7 @@ class SFZ(_Header):
 		opcodes. May be one of:
 
 			SAMPLES_ABSPATH		SAMPLES_RESOLVE		SAMPLES_COPY
-			SAMPLES_SYMLINK		SAMPLES_HARDLINK
+			SAMPLES_MOVE		SAMPLES_SYMLINK		SAMPLES_HARDLINK
 
 		"""
 		filename = abspath(filename)
@@ -354,6 +355,8 @@ class SFZ(_Header):
 				try:
 					if samples_mode == SAMPLES_COPY:
 						sample.copy_to(target_sfz_dir, samples_path)
+					elif samples_mode == SAMPLES_MOVE:
+						sample.move_to(target_sfz_dir, samples_path)
 					elif samples_mode == SAMPLES_SYMLINK:
 						sample.symlink_to(target_sfz_dir, samples_path)
 					elif samples_mode == SAMPLES_HARDLINK:
