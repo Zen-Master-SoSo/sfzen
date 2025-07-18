@@ -5,7 +5,8 @@
 """
 Utility which lists all opcodes declared in one or many .sfz files
 """
-import os, logging, argparse
+import logging, argparse
+from os.path import isdir, isfile, join
 from glob import glob
 from progress.bar import IncrementalBar
 from sfzen import SFZ
@@ -32,11 +33,11 @@ def main():
 	logging.basicConfig(level = log_level, format = log_format)
 
 	for path in options.Filename:
-		if os.path.isdir(path):
-			file_list = glob(os.path.join(path, '*.sfz'))
+		if isdir(path):
+			file_list = glob(join(path, '*.sfz'))
 			if options.recurse:
-				file_list.extend(glob(os.path.join(path, '**', '*.sfz')))
-		elif os.path.isfile(path):
+				file_list.extend(glob(join(path, '**', '*.sfz')))
+		elif isfile(path):
 			file_list = [path]
 	opcodes = set()
 	with IncrementalBar('Reading .sfz', max=len(file_list)) as progress_bar:

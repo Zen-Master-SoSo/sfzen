@@ -28,11 +28,11 @@ def main():
 	Modify the sample rate (and other properties) of the source samples of an SFZ file.
 	"""
 	parser.add_argument('Source', type = str, help = 'SFZ file to resample.')
-	parser.add_argument('Target', type = str, help = 'Target SFZ to save.')
+	parser.add_argument('Target', type = str, nargs = '?', help = 'Target SFZ to save.')
 	parser.add_argument("--rate", "-r",
 		type = int, default = default_samplerate,
 		help = f"Sample rate (default {default_samplerate})")
-	parser.add_argument("--channels", "-s",
+	parser.add_argument("--channels", "-c",
 		type = int, default = 1, help = "Channels (default 1).")
 	parser.add_argument("--bitdepth", "-b",
 		type = int, default = 16, help = "Bitdepth (default 16)")
@@ -48,7 +48,7 @@ def main():
 		target_rate = options.rate,
 		target_channels = options.channels,
 		target_bitdepth = options.bitdepth
-	).resample_as(options.Target)
+	).resample_as(options.Target or options.Source)
 
 
 if __name__ == "__main__":
