@@ -10,7 +10,11 @@ import re, logging
 from os import symlink, link, sep as path_separator
 from os.path import abspath, exists, join, relpath
 from shutil import move, copy2 as copy
-from functools import cache, cached_property, reduce
+from functools import cached_property, reduce
+try:
+	from functools import cache
+except ImportError:
+	from functools import lru_cache as cache
 from operator import and_, or_
 from midi_notes import NOTE_NUMBERS
 from sfzen.sort import opcode_sorted
@@ -524,7 +528,7 @@ class Sample(Opcode):
 
 		"sfz_directory" is the directory in which the .sfz file is to be written.
 		"""
-		self._value = relpath(self.abspath, join(sfz_directory, self.basename))
+		self.path = relpath(self.abspath, sfz_directory)
 
 	def copy_to(self, sfz_directory, samples_path):
 		"""
