@@ -8,6 +8,7 @@ Utility which lists all opcodes declared in one or many .sfz files
 import logging, argparse
 from os.path import isdir, isfile, join
 from glob import glob
+from lark.exceptions import LarkError
 from progress.bar import IncrementalBar
 from sfzen import SFZ
 from sfzen.sort import name_sorted
@@ -42,7 +43,11 @@ def main():
 	opcodes = set()
 	with IncrementalBar('Reading .sfz', max=len(file_list)) as progress_bar:
 		for filename in file_list:
-			opcodes |= SFZ(filename).opcodes_used()
+			try:
+				opcodes |= SFZ(filename).opcodes_used()
+			except LarkError:
+				print()
+				print(f'Parse error in "{filename}"')
 			progress_bar.next()
 	print("\n".join(name_sorted(opcodes)))
 

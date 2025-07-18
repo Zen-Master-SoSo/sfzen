@@ -182,7 +182,7 @@ class SFZXformer(Transformer):
 					else:
 						logging.error('Invalid opcode inside velocity curve definition')
 			else:
-				opname = self.replace_defs(toks[0].value.lower())
+				opname = self.replace_defs(toks[0].value).lower()
 				self.current_header.append_opcode(Opcode(
 					opname, self.replace_defs(toks[1].value),
 					meta, self.sfz.basedir))
@@ -270,16 +270,7 @@ class SFZ(_Header):
 		super().append_opcode(opcode)
 
 	def append_parse_error(self, error, meta):
-		tb = error.__traceback__
-		logging.error('Parse error in %s line %d: %s "%s" in %s, line %s',
-			self.filename,
-			meta.line,
-			type(error).__name__,
-			str(error),
-			basename(tb.tb_frame.f_code.co_filename),
-			tb.tb_lineno
-		)
-		self.parse_errors.append(error)
+		self.parse_errors.append((error, meta))
 
 	def inherited_opcodes(self):
 		return {}
