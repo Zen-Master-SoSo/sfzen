@@ -8,7 +8,11 @@ Optionally converts stereo samples to mono.
 """
 import logging, argparse
 from os.path import basename
-from jack import Client, JackOpenError
+from jack import Client
+try:
+	from jack import JackOpenError
+except ImportError:
+	from jack import JackError as JackOpenError
 from sfzen.resampler import SFZResampler
 from sfzen import SFZ
 
@@ -32,8 +36,8 @@ def main():
 	parser.add_argument("--rate", "-r",
 		type = int, default = default_samplerate,
 		help = f"Sample rate (default {default_samplerate})")
-	parser.add_argument("--channels", "-c",
-		type = int, default = 1, help = "Channels (default 1).")
+	parser.add_argument("--mono", "-m", action = "store_true",
+		help = "Make samples monophonic.")
 	parser.add_argument("--bitdepth", "-b",
 		type = int, default = 16, help = "Bitdepth (default 16)")
 	parser.add_argument("--verbose", "-v", action = "store_true",
@@ -46,7 +50,7 @@ def main():
 	sfz = SFZ(options.Source)
 	SFZResampler(sfz,
 		target_rate = options.rate,
-		target_channels = options.channels,
+		target_mono = options.mono,
 		target_bitdepth = options.bitdepth
 	).resample_as(options.Target or options.Source)
 

@@ -14,23 +14,21 @@ from sfzen.sfz_elems import Opcode
 
 class SFZResampler:
 
-	def __init__(self, sfz, target_rate = 44100, target_channels = 1, target_bitdepth = 16):
+	def __init__(self, sfz, target_rate = 44100, target_mono = False, target_bitdepth = 16):
 		self.sfz = sfz
 		self.target_rate = target_rate
-		self.target_channels = target_channels
+		self.target_mono = target_mono
 		self.target_bitdepth = target_bitdepth
-		self.bad_samples = []
+		self.resamplers = [
+			SampleResampler(sample, self.target_rate, self.target_mono, self.target_bitdepth) \
+			for sample in self.sfz.samples() ]
+		self.bad_samplers = [ resampler for resampler in self.resamplers if resampler.needs_resample() ]
 
 	def needs_resample(self):
-		for sample in self.sfz.samples():
-			resampler = SampleResampler(sample, self.target_rate, self.target_channels, self.target_bitdepth)
-			if resampler.needs_resample():
-				self.bad_samples.append(resampler)
-		return bool(self.bad_samples)
+		return bool(self.bad_samplers)
 
 	def resample_as(self, filename):
-		for sample in self.sfz.samples():
-			resampler = SampleResampler(sample, self.target_rate, self.target_channels, self.target_bitdepth)
+		for resampler in self.resamplers:
 			if resampler.needs_resample():
 				resampler.resample()
 		self.sfz.save_as(filename, SAMPLES_MOVE)
@@ -41,12 +39,12 @@ class SampleResampler:
 	soxi_infos = {}			# { abspath : sox.file_info }
 	converted_files = []	# Complicated filename in temp dir.
 
-	def __init__(self, sample, target_rate, target_channels, target_bitdepth):
+	def __init__(self, sample, target_rate, target_mono, target_bitdepth):
 		self.sample = sample
 		self.basedir = sample.basedir
 		assert self.basedir is not None
 		self.target_rate = target_rate
-		self.target_channels = target_channels
+		self.target_mono = target_mono
 		self.target_bitdepth = target_bitdepth
 		self.source_path = self.sample.abspath
 		if not self.source_path in self.soxi_infos:
@@ -71,8 +69,11 @@ class SampleResampler:
 
 	def needs_resample(self):
 		return self.sample_rate != self.target_rate \
-			or self.channels != self.target_channels \
+			or self.target_mono and self.channels > 1 \
 			or self.bitdepth != self.target_bitdepth
+
+	def format_repr(self):
+		return f'{self.sample_rate}Hz, {self.bitdepth} bits, {self.channels} channels'
 
 	def resample(self):
 		if not self.needs_resample():
@@ -92,14 +93,12 @@ class SampleResampler:
 						logging.debug('Adjusted %s', opcode)
 		# ------------------
 		# Do file conversion
-		filetitle, ext = splitext(basename(self.source_path))
-		param_str = f'{self.target_rate}-{self.target_channels}-{self.target_bitdepth}'
-		out_file = join(tempdir(), f'{filetitle}-{param_str}{ext}')
+		out_file = join(tempdir(), basename(self.source_path))
 		if not out_file in self.converted_files:
 			xfmr = sox.Transformer()
 			xfmr.convert(
 				samplerate = self.target_rate,
-				n_channels = self.target_channels,
+				n_channels = 1 if self.target_mono else None,
 				bitdepth = self.target_bitdepth)
 			xfmr.build_file(self.source_path, out_file)
 			self.converted_files.append(out_file)
