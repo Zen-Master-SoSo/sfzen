@@ -149,7 +149,6 @@ class SFZXformer(Transformer):
 			self.sfz.includes.append(include)
 			path = join(dirname(self.sfz.filename), include.filename)
 			if exists(path):
-				logging.debug('Including "%s"', path)
 				try:
 					subsfz = SFZ(path, defines = self.sfz.defines, basedir = self.sfz.basedir, is_include = True)
 					for header in subsfz.subheaders:

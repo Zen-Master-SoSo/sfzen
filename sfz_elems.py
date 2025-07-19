@@ -401,7 +401,6 @@ class Opcode(_SFZElement):
 				self._value = int(value)
 			except ValueError as err:
 				if value.upper() in NOTE_NUMBERS:
-					logging.warning('Converting %s to midi note number', value)
 					self._value = NOTE_NUMBERS[value.upper()]
 				else:
 					raise err
