@@ -161,12 +161,42 @@ class _Header(_SFZElement):
 
 	def opcode(self, name):
 		"""
+		Returns an Opcode with the given name, if one exists in this _Header.
+		Returns None if no such opcode exists.
+		"""
+		return self._opcodes[name] if name in self._opcodes else None
+
+	def iopcode(self, name):
+		"""
 		Returns an Opcode with the given name, if one exists in this _Header or any of
 		its ancestors. Returns None if no such opcode exists.
 		"""
 		return self._opcodes[name] if name in self._opcodes \
 			else None if self._parent is None \
-			else self._parent.opcode(name)
+			else self._parent.iopcode(name)
+
+	def __getattr__(self, name):
+		try:
+			return super().__getattribute__(name)
+		except AttributeError as err:
+			opcode = self.iopcode(name)
+			if opcode:
+				return opcode.value
+			if normal_opcode(name):
+				return None
+			raise err
+
+	def __setattr__(self, name, value):
+		if name[0] == '_':
+			super().__setattr__(name, value)
+		elif name in self.__dict__:
+			self.__dict__[name] = value
+		elif '_opcodes' in self.__dict__ and name in self.__dict__['_opcodes']:
+			self._opcodes[name].value = value
+		elif not normal_opcode(name) is None:
+			self.append_opcode(Opcode(name, value, None))
+		else:
+			super().__setattr__(name, value)
 
 	def opcodes_used(self):
 		"""
@@ -178,8 +208,9 @@ class _Header(_SFZElement):
 
 	def regions(self):
 		"""
-		Returns all <region> headers contained by this _Header and all of its child
-		headers.
+		Returns all <region> headers contained in this _Header and all of its
+		subheaders.
+		This is a generator function which yields a Region object on each iteration.
 		"""
 		for sub in self._subheaders:
 			if isinstance(sub, Region):
@@ -188,7 +219,7 @@ class _Header(_SFZElement):
 
 	def samples(self):
 		"""
-		Generator which yields a Sample on each iteraration.
+		This is a generator function which yields a Sample object on each iteration.
 		"""
 		if 'sample' in self._opcodes:
 			yield self._opcodes['sample']
@@ -247,9 +278,8 @@ class _Header(_SFZElement):
 		"stream" may be any file-like object, like "sys.stdout".
 		"""
 		stream.write(str(self) + "\n")
-		opcodes = self._opcodes.values()
-		if opcodes:
-			for op in opcode_sorted(opcodes):
+		if self._opcodes:
+			for op in opcode_sorted(self._opcodes.values()):
 				op.write(stream)
 			stream.write("\n")
 		if self._subheaders:
@@ -316,18 +346,6 @@ class Region(_Header):
 		if hivel is not None and 'hivel' in ops and ops['hivel'].value < hivel:
 			return False
 		return True
-
-	def sample(self):
-		"""
-		Returns the "sample" opcode in this region, if one exists.
-		"""
-		return self.opcodes['sample'] if 'sample' in self.opcodes else None
-
-	def sample_path(self):
-		"""
-		Returns the abspath of the "sample" opcode in this region, if one exists.
-		"""
-		return self.opcodes['sample'].abspath if 'sample' in self.opcodes else None
 
 
 class Control(_Header):
@@ -798,7 +816,6 @@ def normal_opcode(opcode_name, follow_aliases = True):
 					return aliases(sub) if follow_aliases else opcode_name
 				logging.debug('normal_opcode: Falling through to do recursive checking')
 				return normal_opcode(sub, follow_aliases)
-	logging.warning('Could not find opcode "%s"', opcode_name)
 	return None
 
 @cache

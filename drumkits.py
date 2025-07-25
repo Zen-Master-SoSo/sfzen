@@ -12,7 +12,7 @@ from functools import reduce
 from operator import and_, or_
 from midi_notes import Note, MIDI_DRUM_IDS, MIDI_DRUM_PITCHES, MIDI_DRUM_NAMES
 from sfzen import COMMENT_DIVIDER, SFZ, KEY_OPCODES
-from sfzen.sort import OPCODE_SORT_ORDER
+from sfzen.sort import opstring_sorted
 from sfzen.sfz_elems import Region as SFZRegion
 
 # -----------------------------------------------------------------
@@ -96,13 +96,6 @@ def iter_pitch_by_group():
 	for pitches in GROUP_PITCHES.values():
 		yield from pitches
 
-def opstring_sorted(opstrings):
-	def sort_val(opstring):
-		op = opstring.split('=', 1)[0]
-		return OPCODE_SORT_ORDER.index(op) \
-		if op in OPCODE_SORT_ORDER else 1000
-	return sorted(opstrings, key = sort_val)
-
 def pitch_id_tuple(pitch_or_id):
 	"""
 	Returns tuple:
@@ -131,6 +124,7 @@ class Region(SFZRegion):
 	"""
 
 	def __init__(self, source_region, source_filename):
+		self._parent = None
 		self._subheaders = []
 		self._opcodes = source_region.inherited_opcodes()
 		self.filename = source_filename
@@ -344,6 +338,7 @@ class Drumkit(SFZ):
 	"""
 
 	def __init__(self, filename=None):
+		self._parent = None
 		self.groups = { group_id:PercussionGroup(group_id) for group_id in GROUP_PITCHES }
 		self.filename = filename
 		if self.filename is None:

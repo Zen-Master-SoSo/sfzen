@@ -80,17 +80,24 @@ def name_sorted(opcodes):
 		OPCODE_SORT_ORDER.index(opcode) \
 		if opcode in OPCODE_SORT_ORDER else 1000)
 
+def opstring_sorted(opstrings):
+	def sort_val(opstring):
+		op = opstring.split('=', 1)[0]
+		return OPCODE_SORT_ORDER.index(op) \
+		if op in OPCODE_SORT_ORDER else 1000
+	return sorted(opstrings, key = sort_val)
+
 def midi_note_sort_key(region):
 	"""
 	Provides a key to use for sorting a list of Regions based on "lokey", "hikey" values.
 	"""
-	key = region.opcode('key')
+	key = region.key
 	if key is None:
-		lokey = region.opcode('lokey').value or 1
-		hikey = region.opcode('hikey').value or 127
+		lokey = region.lokey or 1
+		hikey = region.hikey or 127
 	else:
-		lokey = key.value
-		hikey = key.value
+		lokey = key
+		hikey = key
 	return lokey * 128 + hikey
 
 

@@ -8,6 +8,7 @@ Simple object-oriented SFZ parsing and manipulation.
 import logging, re
 from os import mkdir
 from os.path import abspath, basename, dirname, join, splitext, exists
+from math import ceil
 from operator import or_
 from functools import reduce
 from collections import defaultdict
@@ -45,7 +46,7 @@ SAMPLES_HARDLINK			= 5
 
 GLOBALIZE_NONE				= 0
 GLOBALIZE_NUMEROUS			= 1
-GLOBALIZE_COMMON			= 2
+GLOBALIZE_UNIVERSAL			= 2
 
 KEY_OPCODES = [
 	'lokey',
@@ -289,7 +290,8 @@ class SFZ(_Header):
 
 	def samples(self):
 		"""
-		Generator which yields a Sample object on each iteraration.
+		Returns all <sample> opcodes contained in this SFZ.
+		Generator which yields a Sample object on each iteration.
 		"""
 		for sub in self._subheaders:
 			yield from sub.samples()
@@ -394,8 +396,7 @@ class SFZ(_Header):
 
 		# Remove loop-related opcodes for regions that are not looped:
 		for region in regions:
-			loopmode = region.opcode('loop_mode') or region.opcode('loopmode')
-			if loopmode and loopmode.value == 'no_loop':
+			if region.loop_mode or region.loopmode == 'no_loop':
 				for opcode_name in LOOP_DEFINITION_OPCODES:
 					try:
 						del region._opcodes[opcode_name]
@@ -404,12 +405,14 @@ class SFZ(_Header):
 
 		# Place opcodes which have the same value in a majority of regions
 		# into the global header:
-		if globalize_mode == GLOBALIZE_NUMEROUS:
+		if globalize_mode == GLOBALIZE_NUMEROUS and len(regions) > 1:
 			opstring_counts = defaultdict(int)
-			min_count = round(len(regions) / 2) - 1
+			min_count = ceil(len(regions) / 2)
 			for region in regions:
 				for opstring in region.opstrings():
-					opstring_counts[opstring] += 1
+					if opstring.split('=', 1)[0] != 'sample':
+						opstring_counts[opstring] += 1
+			print(opstring_counts)
 			for opstring, count in opstring_counts.items():
 				if count >= min_count:
 					opcode, value = opstring.split('=', 1)
@@ -443,12 +446,13 @@ class SFZ(_Header):
 			else:
 				simplified_sfz.append_subheader(regions[0])
 
-		if globalize_mode == GLOBALIZE_COMMON:
+		if globalize_mode == GLOBALIZE_UNIVERSAL and len(list(simplified_sfz.regions())) > 1:
 			# Filter global opstrings:
 			common_opstrings = simplified_sfz.common_opstrings()
 			if len(common_opstrings):
 				opstring_tuples = [ opstring.split('=', 1) \
 					for opstring in common_opstrings ]
+				opstring_tuples = [ tup for tup in opstring_tuples if tup[0] != 'sample' ]
 				for tup in opstring_tuples:
 					global_header.append_opcode(Opcode(tup[0], tup[1]))
 				simplified_sfz.remove_opcodes([ tup[0] for tup in opstring_tuples ])

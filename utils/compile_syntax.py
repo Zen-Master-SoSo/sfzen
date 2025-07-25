@@ -2,9 +2,10 @@
 #
 #  Copyright 2024 liyang <liyang@veronica>
 #
-import os, logging, yaml, importlib
+import os, importlib
 from numbers import Real
 from pretty_repr import Repr
+import yaml
 
 VERSION_MAP = {
 	None				: 'unknown',

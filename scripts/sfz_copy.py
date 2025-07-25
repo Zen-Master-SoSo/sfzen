@@ -71,6 +71,7 @@ def main():
 		target = options.Target
 		if os.path.isdir(target):
 			target = os.path.join(target, os.path.basename(options.Source))
+		print(f'Copying {options.Source} to {target}')
 		try:
 			sfz.save_as(target, samples_mode)
 		except OSError as err:

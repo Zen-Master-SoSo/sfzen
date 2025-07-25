@@ -6,11 +6,12 @@
 Simple object-oriented SFZ parsing and manipulation.
 """
 import logging
-from os.path import join, basename, splitext
+from os.path import join, basename
 from tempfile import gettempdir as tempdir
 import sox
 from sfzen import SAMPLE_UNIT_OPCODES, SAMPLES_MOVE
 from sfzen.sfz_elems import Opcode
+
 
 class SFZResampler:
 
@@ -54,26 +55,20 @@ class SampleResampler:
 
 	@property
 	def offset(self):
-		opcode = self.sample.parent.opcode('offset')
-		return opcode.value if opcode else 0
+		return self.sample.parent.offset or 0
 
 	@property
 	def loop_start(self):
-		opcode = self.sample.parent.opcode('loop_start') or self.sample.parent.opcode('loopstart')
-		return opcode.value if opcode else 0
+		return self.sample.parent.loop_start or self.sample.parent.loopstart or 0
 
 	@property
 	def loop_end(self):
-		opcode = self.sample.parent.opcode('loop_end') or self.sample.parent.opcode('loopend')
-		return opcode.value if opcode else self.num_samples
+		return self.sample.parent.loop_end or self.sample.parent.loopend or self.num_samples
 
 	def needs_resample(self):
 		return self.sample_rate != self.target_rate \
 			or self.target_mono and self.channels > 1 \
 			or self.bitdepth != self.target_bitdepth
-
-	def format_repr(self):
-		return f'{self.sample_rate}Hz, {self.bitdepth} bits, {self.channels} channels'
 
 	def resample(self):
 		if not self.needs_resample():
@@ -84,7 +79,7 @@ class SampleResampler:
 		if self.sample_rate != self.target_rate:
 			ratio = self.target_rate / self.sample_rate
 			for opcode_name in SAMPLE_UNIT_OPCODES:
-				opcode = self.sample.parent.opcode(opcode_name)	# Retrieves inherited as well
+				opcode = self.sample.parent.iopcode(opcode_name)	# Retrieves inherited as well
 				if opcode:
 					adjusted_value = round(float(opcode.value) * ratio)
 					if adjusted_value != opcode.value:

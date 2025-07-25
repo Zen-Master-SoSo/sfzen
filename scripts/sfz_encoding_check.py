@@ -6,7 +6,7 @@
 Utility which checks whether sfz samples are in the desired format.
 """
 import logging, argparse
-from os.path import basename, isdir, isfile, join
+from os.path import isdir, isfile, join
 from glob import glob
 from collections import defaultdict
 from sfzen import SFZ
@@ -67,9 +67,10 @@ def main():
 				else:
 					counts = defaultdict(int)
 					for samp_resampler in resampler.bad_samplers:
-						counts[samp_resampler.format_repr()] += 1
+						fmt = f'{samp_resampler.sample_rate}Hz  {samp_resampler.bitdepth} bits  {samp_resampler.channels} channels'
+						counts[fmt] += 1
 					for fmt, cnt in counts.items():
-						print(f'   {cnt} {fmt}')
+						print(f'   {cnt:2d}  {fmt}')
 
 
 if __name__ == "__main__":
