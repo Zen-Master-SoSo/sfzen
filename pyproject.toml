@@ -32,7 +32,7 @@ jack-midi-monitor-cli = "jack_midi_monitor.__main__:main"
 jack-midi-monitor = "jack_midi_monitor.gui:main"
 
 [bumpver]
-current_version = "1.0.4"
+current_version = "1.0.5"
 version_pattern = "MAJOR.MINOR.PATCH"
 commit_message = "Bump version {old_version} -> {new_version}"
 commit = true
