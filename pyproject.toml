@@ -6,9 +6,15 @@ build-backend = "flit_core.buildapi"
 name = "sfzen"
 authors = [{name = "Leon Dionne", email = "ldionne@dridesign.sh.cn"}]
 license = {file = "LICENSE"}
-classifiers = ["License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)"]
+classifiers = [
+	"License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+	"Programming Language :: Python",
+	"Programming Language :: Python :: 3.10",
+	"Topic :: Multimedia :: Sound/Audio :: Sound Synthesis",
+	"Topic :: Multimedia :: Sound/Audio :: MIDI"
+]
 dynamic = ["version", "description"]
-dependencies = ["lark", "midi_notes", "log_soso"]
+dependencies = ["lark", "appdirs", "midi_notes", "log_soso"]
 
 [project.optional-dependencies]
 resample = ["sox"]
@@ -34,6 +40,6 @@ tag = false
 push = false
 
 [bumpver.file_patterns]
-"jack_connection_manager/__init__.py" = [
+"sfzen/__init__.py" = [
     '^__version__ = "{version}"$',
 ]

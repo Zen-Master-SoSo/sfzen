@@ -21,7 +21,7 @@
 Copies an sfz with various options for handling samples.
 """
 import os, sys, logging, argparse
-from good_logging import log_error
+from log_soso import log_error
 from sfzen import (
 	SFZ,
 	SAMPLES_ABSPATH,

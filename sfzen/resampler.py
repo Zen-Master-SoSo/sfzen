@@ -23,7 +23,17 @@ Provides class used to modify sample rate, bit depth, and number of channels of 
 import logging
 from os.path import join, basename
 from tempfile import gettempdir as tempdir
-import sox
+try:
+	import sox
+except ImportError:
+	print("""
+Oops! "sox" is not installed! Resampling depends upon it
+(You may have installed sfzen without the [resample] option)
+Install the "sox" python wrapper and try again:
+
+   pip install sox
+""")
+	exit()
 from sfzen import SAMPLE_UNIT_OPCODES, SAMPLES_MOVE
 from sfzen.sfz_elems import Opcode
 
