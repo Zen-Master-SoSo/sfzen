@@ -2,6 +2,8 @@
 
 Simple object-oriented SFZ parsing and manipulation.
 
+## Credits
+
 This project borrows a good deal from sfzlint by [J. Isaac
 Stone](https://github.com/jisaacstone), particularly the lark parser
 definition. I made everything as object-oriented and pythonic as I could, and
