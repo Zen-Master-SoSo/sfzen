@@ -5,6 +5,7 @@ build-backend = "flit_core.buildapi"
 [project]
 name = "sfzen"
 authors = [{name = "Leon Dionne", email = "ldionne@dridesign.sh.cn"}]
+readme = "README.md"
 license = {file = "LICENSE"}
 classifiers = [
 	"License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
