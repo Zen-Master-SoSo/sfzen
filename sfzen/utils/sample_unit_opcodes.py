@@ -1,3 +1,7 @@
+#  sfzen/sfzen/utils/sample_unit_opcodes.py
+#
+#  Copyright 2025 Leon Dionne <ldionne@dridesign.sh.cn>
+#
 #  sfzen/utils/sample_unit_opcodes.py
 #
 #  Copyright 2025 liyang <liyang@veronica>

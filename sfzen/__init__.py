@@ -2,6 +2,21 @@
 #
 #  Copyright 2024 liyang <liyang@veronica>
 #
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+#  MA 02110-1301, USA.
+#
 """
 Simple object-oriented SFZ parsing and manipulation.
 """
@@ -15,11 +30,11 @@ from collections import defaultdict
 from appdirs import user_cache_dir
 from lark import Lark, Transformer, v_args
 from lark.tree import Meta
-from good_logging import log_error
+from log_soso import log_error
 from sfzen.sfz_elems import (
 	_SFZElement,
-	_Header,
 	_Modifier,
+	Header,
 	Global,
 	Master,
 	Group,
@@ -34,6 +49,8 @@ from sfzen.sfz_elems import (
 	Include
 )
 from sfzen.sort import midi_note_sort_key
+
+__version__ = "1.0.0"
 
 COMMENT_DIVIDER = '// ' + '-' * 76 + "\n"
 
@@ -108,21 +125,21 @@ class SFZXformer(Transformer):
 		"""
 		meta, toks = self.wonky_lark_args(arg1, arg2)
 		if toks[0].value == 'region':
-			header = Region(toks, meta)
+			header = Region(meta)
 		elif toks[0].value == 'group':
-			header = Group(toks, meta)
+			header = Group(meta)
 		elif toks[0].value == 'control':
-			header = Control(toks, meta)
+			header = Control(meta)
 		elif toks[0].value == 'global':
-			header = Global(toks, meta)
+			header = Global(meta)
 		elif toks[0].value == 'curve':
-			header = Curve(toks, meta)
+			header = Curve(meta)
 		elif toks[0].value == 'effect':
-			header = Effect(toks, meta)
+			header = Effect(meta)
 		elif toks[0].value == 'master':
-			header = Master(toks, meta)
+			header = Master(meta)
 		elif toks[0].value == 'midi':
-			header = Midi(toks, meta)
+			header = Midi(meta)
 		while not self.current_header.may_contain(header):
 			self.current_header = self.current_header.parent
 		self.current_header.append_subheader(header)
@@ -221,7 +238,7 @@ class SFZXformer(Transformer):
 		return var
 
 
-class SFZ(_Header):
+class SFZ(Header):
 	"""
 	Provides an object-oriented interface to an .sfz file.
 	"""

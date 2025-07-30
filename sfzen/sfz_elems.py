@@ -2,6 +2,21 @@
 #
 #  Copyright 2024 liyang <liyang@veronica>
 #
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+#  MA 02110-1301, USA.
+#
 """
 Classes which are instantiated when parsing an .sfz file.
 All of these classes are constructed from a lark parser tree Token.
@@ -16,7 +31,7 @@ try:
 except ImportError:
 	from functools import lru_cache as cache
 from operator import and_, or_
-from midi_notes import NOTE_NUMBERS
+from midi_notes import NOTE_PITCHES
 from sfzen.sort import opcode_sorted
 from sfzen.opcodes import OPCODES
 
@@ -63,14 +78,14 @@ class _SFZElement:
 		return type(self).__name__
 
 
-class _Header(_SFZElement):
+class Header(_SFZElement):
 	"""
 	An abstract class which handles the functions common to all SFZ header types.
 	Each header type basically acts the same, except for checking what kind of
 	subheader it may contain.
 	"""
 
-	def __init__(self, _, meta):
+	def __init__(self, meta = None):
 		super().__init__(meta)
 		self._subheaders = []
 		self._opcodes = {}
@@ -84,14 +99,14 @@ class _Header(_SFZElement):
 
 	def append_opcode(self, opcode):
 		"""
-		Append an opcode to this _Header.
+		Append an opcode to this Header.
 		"""
 		self._opcodes[opcode.name] = opcode
 		opcode.parent = self
 
 	def append_subheader(self, subheader):
 		"""
-		Append a subheader to this _Header
+		Append a subheader to this Header
 		"""
 		self._subheaders.append(subheader)
 		subheader.parent = self
@@ -107,14 +122,14 @@ class _Header(_SFZElement):
 	@property
 	def subheaders(self):
 		"""
-		Returns a list of headers contained in this _Header.
+		Returns a list of headers contained in this Header.
 		"""
 		return self._subheaders
 
 	def inherited_opcodes(self):
 		"""
-		Returns all the opcodes defined in this _Header with all opcodes defined in its
-		parent _Header, recursively. Opcodes defined in this _Header override parents'.
+		Returns all the opcodes defined in this Header with all opcodes defined in its
+		parent Header, recursively. Opcodes defined in this Header override parents'.
 		Returns dict { opcode_name:Opcode }
 		"""
 		return self._opcodes if self._parent is None \
@@ -123,15 +138,15 @@ class _Header(_SFZElement):
 	def opstrings(self):
 		"""
 		Returns a set of all the string representation (including name and value) of
-		all the opcodes which are used by this _Header. This does NOT include opcodes
-		used by subheaders beneath this _Header.
+		all the opcodes which are used by this Header. This does NOT include opcodes
+		used by subheaders beneath this Header.
 		"""
 		return set(str(opcode) for opcode in self._opcodes.values())
 
 	def opstrings_used(self):
 		"""
 		Returns a set of all the string representation (including name and value) of
-		all the opcodes used in this _Header, and any subheaders beneath this _Header.
+		all the opcodes used in this Header, and any subheaders beneath this Header.
 		"""
 		opstrings = [sub.opstrings_used() for sub in self._subheaders]
 		opstrings.append(self.opstrings())
@@ -140,7 +155,7 @@ class _Header(_SFZElement):
 	def common_opstrings(self):
 		"""
 		Returns a set of all the string representation (including name and value) of
-		all the identical opcodes used in every subheader in this _Header.
+		all the identical opcodes used in every subheader in this Header.
 		"""
 		if self._subheaders:
 			sets = [ sub.common_opstrings() for sub in self._subheaders ]
@@ -154,21 +169,21 @@ class _Header(_SFZElement):
 	def uses_opstring(self, opstring):
 		"""
 		Returns True if the given string representation (including name and value) of
-		an opcode is used by this _Header. This does not include opcodes used by
-		_Headers contained in this _Header.
+		an opcode is used by this Header. This does not include opcodes used by
+		_Headers contained in this Header.
 		"""
 		return opstring in self.opstrings()
 
 	def opcode(self, name):
 		"""
-		Returns an Opcode with the given name, if one exists in this _Header.
+		Returns an Opcode with the given name, if one exists in this Header.
 		Returns None if no such opcode exists.
 		"""
 		return self._opcodes[name] if name in self._opcodes else None
 
 	def iopcode(self, name):
 		"""
-		Returns an Opcode with the given name, if one exists in this _Header or any of
+		Returns an Opcode with the given name, if one exists in this Header or any of
 		its ancestors. Returns None if no such opcode exists.
 		"""
 		return self._opcodes[name] if name in self._opcodes \
@@ -200,7 +215,7 @@ class _Header(_SFZElement):
 
 	def opcodes_used(self):
 		"""
-		Returns a set of the keys of all the opcodes used in this _Header and all of
+		Returns a set of the keys of all the opcodes used in this Header and all of
 		its subheaders.
 		"""
 		return set(self._opcodes.keys()) | reduce(or_, [sub.opcodes_used() \
@@ -208,7 +223,7 @@ class _Header(_SFZElement):
 
 	def regions(self):
 		"""
-		Returns all <region> headers contained in this _Header and all of its
+		Returns all <region> headers contained in this Header and all of its
 		subheaders.
 		This is a generator function which yields a Region object on each iteration.
 		"""
@@ -228,7 +243,7 @@ class _Header(_SFZElement):
 
 	def walk(self, depth = 0):
 		"""
-		Generator which recusively yields every element contained in this _Header,
+		Generator which recusively yields every element contained in this Header,
 		including opcodes and subheaders. Opcodes are yielded first, then subheaders.
 		Each iteration returns a tuple (_SFZElement, (int) depth)
 		"""
@@ -241,11 +256,11 @@ class _Header(_SFZElement):
 
 	def opcode_count(self):
 		"""
-		Returns (int) number of opcodes used in this _Header and all subheaders
+		Returns (int) number of opcodes used in this Header and all subheaders
 		"""
 		return sum(len(elem.opcodes.values()) \
 			for elem, _ in self.walk() \
-			if isinstance(elem, _Header))
+			if isinstance(elem, Header))
 
 	def reduce_common_opcodes(self):
 		"""
@@ -260,7 +275,7 @@ class _Header(_SFZElement):
 
 	def remove_opcodes(self, opcode_list):
 		for elem, _ in self.walk():
-			if isinstance(elem, _Header):
+			if isinstance(elem, Header):
 				elem._opcodes = { key:opcode \
 					for key, opcode in elem._opcodes.items() \
 					if key not in opcode_list }
@@ -273,7 +288,7 @@ class _Header(_SFZElement):
 
 	def write(self, stream):
 		"""
-		Exports this _Header and all of it's contained headers and
+		Exports this Header and all of it's contained headers and
 		opcodes to .sfz format.
 		"stream" may be any file-like object, like "sys.stdout".
 		"""
@@ -291,7 +306,7 @@ class _Modifier(_SFZElement):
 	pass
 
 
-class Global(_Header):
+class Global(Header):
 	"""
 	Represents an SFZ Global header. Created by Lark transformer when importing SFZ.
 	"""
@@ -300,7 +315,7 @@ class Global(_Header):
 		return True
 
 
-class Master(_Header):
+class Master(Header):
 	"""
 	Represents an SFZ Master header. Created by Lark transformer when importing SFZ.
 	"""
@@ -309,7 +324,7 @@ class Master(_Header):
 		return type(header) not in [Global, Master]
 
 
-class Group(_Header):
+class Group(Header):
 	"""
 	Represents an SFZ Group header. Created by Lark transformer when importing SFZ.
 	"""
@@ -318,7 +333,7 @@ class Group(_Header):
 		return type(header) not in [Global, Master, Group]
 
 
-class Region(_Header):
+class Region(Header):
 	"""
 	Represents an SFZ Region header. Created by Lark transformer when importing SFZ.
 	"""
@@ -348,25 +363,25 @@ class Region(_Header):
 		return True
 
 
-class Control(_Header):
+class Control(Header):
 	"""
 	Represents an SFZ Control header. Created by Lark transformer when importing SFZ.
 	"""
 
 
-class Effect(_Header):
+class Effect(Header):
 	"""
 	Represents an SFZ Effect header. Created by Lark transformer when importing SFZ.
 	"""
 
 
-class Midi(_Header):
+class Midi(Header):
 	"""
 	Represents an SFZ MIDI header. Created by Lark transformer when importing SFZ.
 	"""
 
 
-class Curve(_Header):
+class Curve(Header):
 	"""
 	Represents an SFZ curve. Created by Lark transformer when importing SFZ.
 	"""
@@ -418,8 +433,8 @@ class Opcode(_SFZElement):
 			try:
 				self._value = int(value)
 			except ValueError as err:
-				if value.upper() in NOTE_NUMBERS:
-					self._value = NOTE_NUMBERS[value.upper()]
+				if value.upper() in NOTE_PITCHES:
+					self._value = NOTE_PITCHES[value.upper()]
 				else:
 					raise err
 		else:

@@ -1,0 +1,39 @@
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "sfzen"
+authors = [{name = "Leon Dionne", email = "ldionne@dridesign.sh.cn"}]
+license = {file = "LICENSE"}
+classifiers = ["License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)"]
+dynamic = ["version", "description"]
+dependencies = ["lark", "midi_notes", "log_soso"]
+
+[project.optional-dependencies]
+resample = ["sox"]
+
+[project.urls]
+Home = "https://github.com/Zen-Master-SoSo/sfzen"
+
+[project.scripts]
+sfz-copy = "sfzen.scripts.sfz_copy:main"
+sfz-encoding-check = "sfzen.scripts.sfz_encoding_check:main"
+sfz-opcode-usage = "sfzen.scripts.sfz_opcode_usage:main"
+sfz-resample = "sfzen.scripts.sfz_resample:main"
+
+jack-midi-monitor-cli = "jack_midi_monitor.__main__:main"
+jack-midi-monitor = "jack_midi_monitor.gui:main"
+
+[bumpver]
+current_version = "1.0.3"
+version_pattern = "MAJOR.MINOR.PATCH"
+commit_message = "Bump version {old_version} -> {new_version}"
+commit = true
+tag = false
+push = false
+
+[bumpver.file_patterns]
+"jack_connection_manager/__init__.py" = [
+    '^__version__ = "{version}"$',
+]

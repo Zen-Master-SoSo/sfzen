@@ -6,3 +6,5 @@ temp
 temp.*
 debug.*
 TODO
+/venv
+/dist

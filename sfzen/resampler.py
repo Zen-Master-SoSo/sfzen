@@ -2,8 +2,23 @@
 #
 #  Copyright 2025 liyang <liyang@veronica>
 #
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+#  MA 02110-1301, USA.
+#
 """
-Simple object-oriented SFZ parsing and manipulation.
+Provides class used to modify sample rate, bit depth, and number of channels of SFZ samples.
 """
 import logging
 from os.path import join, basename
@@ -14,6 +29,9 @@ from sfzen.sfz_elems import Opcode
 
 
 class SFZResampler:
+	"""
+	Class used to modify sample rate, bit depth, and number of channels of SFZ samples.
+	"""
 
 	def __init__(self, sfz, target_rate = 44100, target_mono = False, target_bitdepth = 16):
 		self.sfz = sfz
