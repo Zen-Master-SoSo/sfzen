@@ -50,7 +50,7 @@ from sfzen.sfz_elems import (
 )
 from sfzen.sort import midi_note_sort_key
 
-__version__ = "1.0.7"
+__version__ = "1.0.8"
 
 COMMENT_DIVIDER = '// ' + '-' * 76 + "\n"
 
