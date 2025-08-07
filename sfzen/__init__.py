@@ -372,9 +372,10 @@ class SFZ(Header):
 						sample.hardlink_to(target_sfz_dir, samples_path)
 				except FileExistsError:
 					pass
-		with open(filename + '.sfz' if ext == '' else filename,
-			'w', encoding = 'utf-8') as fob:
+		self.filename = filename + '.sfz' if ext == '' else filename
+		with open(self.filename, 'w', encoding = 'utf-8') as fob:
 			self.write(fob)
+		return self
 
 	def write(self, stream):
 		"""
