@@ -18,7 +18,7 @@
 #  MA 02110-1301, USA.
 #
 """
-Copies an sfz with various options for handling samples.
+Copies an .sfz to another location with multiple ways of handling samples.
 """
 import os, sys, logging, argparse
 from log_soso import log_error
@@ -53,9 +53,7 @@ def main():
 		help="Do not make changes - just show what would be changed.")
 	p.add_argument("--verbose", "-v", action="store_true",
 		help="Show more detailed debug information")
-	p.epilog = """
-	Copies an .sfz to another location with multiple ways of handling samples.
-	"""
+	p.epilog = __doc__
 	options = p.parse_args()
 	if not os.path.isfile(options.Source):
 		p.exit(f'"{options.Source}" is not a file')

@@ -330,6 +330,14 @@ class SFZ(Header):
 			if region.is_triggerd_by(key, lokey, hikey, lovel, hivel):
 				yield region
 
+	def save(self):
+		"""
+		Save to original filename without any further modification.
+		"""
+		with open(self.filename, 'w', encoding = 'utf-8') as fob:
+			self.write(fob)
+		return self
+
 	def save_as(self, filename, samples_mode = SAMPLES_ABSPATH):
 		"""
 		Save to the given filename.
@@ -373,9 +381,7 @@ class SFZ(Header):
 				except FileExistsError:
 					pass
 		self.filename = filename + '.sfz' if ext == '' else filename
-		with open(self.filename, 'w', encoding = 'utf-8') as fob:
-			self.write(fob)
-		return self
+		self.save()
 
 	def write(self, stream):
 		"""
