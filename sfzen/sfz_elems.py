@@ -23,7 +23,7 @@ All of these classes are constructed from a lark parser tree Token.
 """
 import re, logging
 from os import unlink, symlink, link as hardlink, sep as path_separator
-from os.path import abspath, exists, join, relpath
+from os.path import abspath, exists, islink, join, relpath
 from shutil import move, copy2 as copy
 from functools import cached_property, reduce
 try:
@@ -583,10 +583,10 @@ class Sample(Opcode):
 		"samples_path" is the directory where the samples are to be written, relative
 		to "sfz_directory".
 		"""
-		value, abspath = self._new_target(sfz_directory, samples_path)
-		if exists(abspath):
-			unlink(abspath)
-		copy(self.abspath, abspath)
+		value, path = self._new_target(sfz_directory, samples_path)
+		if exists(path):
+			unlink(path)
+		copy(self.abspath, path)
 		self._value = value
 
 	def move_to(self, sfz_directory, samples_path):
@@ -599,10 +599,10 @@ class Sample(Opcode):
 		"samples_path" is the directory where the samples are to be written, relative
 		to "sfz_directory".
 		"""
-		value, abspath = self._new_target(sfz_directory, samples_path)
-		if exists(abspath):
-			unlink(abspath)
-		move(self.abspath, abspath)
+		value, path = self._new_target(sfz_directory, samples_path)
+		if exists(path):
+			unlink(path)
+		move(self.abspath, path)
 		self._value = value
 
 	def symlink_to(self, sfz_directory, samples_path):
@@ -615,10 +615,10 @@ class Sample(Opcode):
 		"samples_path" is the directory where the samples are to be written, relative
 		to "sfz_directory".
 		"""
-		value, abspath = self._new_target(sfz_directory, samples_path)
-		if exists(abspath):
-			unlink(abspath)
-		symlink(self.abspath, abspath)
+		value, path = self._new_target(sfz_directory, samples_path)
+		if islink(path):
+			unlink(path)
+		symlink(self.abspath, path)
 		self._value = value
 
 	def hardlink_to(self, sfz_directory, samples_path):
@@ -631,10 +631,10 @@ class Sample(Opcode):
 		"samples_path" is the directory where the samples are to be written, relative
 		to "sfz_directory".
 		"""
-		value, abspath = self._new_target(sfz_directory, samples_path)
-		if exists(abspath):
-			unlink(abspath)
-		hardlink(self.abspath, abspath)
+		value, path = self._new_target(sfz_directory, samples_path)
+		if exists(path):
+			unlink(path)
+		hardlink(self.abspath, path)
 		self._value = value
 
 

@@ -245,7 +245,7 @@ class SFZ(Header):
 
 	_parser = None
 
-	def __init__(self, filename = None, defines = {}, basedir = None, is_include = False):
+	def __init__(self, filename = None, defines = None, basedir = None, is_include = False):
 		"""
 		filename: (str) Path to an .sfz file.
 
@@ -256,7 +256,7 @@ class SFZ(Header):
 		parent when parsing sample paths.
 		"""
 		self.filename = filename
-		self.defines = defines
+		self.defines = defines or {}
 		self.is_include = is_include
 		self._parent = None
 		self._subheaders = []
