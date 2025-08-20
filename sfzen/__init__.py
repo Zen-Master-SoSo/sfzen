@@ -352,10 +352,8 @@ class SFZ(Header):
 		filename = abspath(filename)
 		target_sfz_dir = dirname(filename)
 		filetitle, ext = splitext(basename(filename))
-		try:
+		if not exists(target_sfz_dir):
 			mkdir(target_sfz_dir)
-		except FileExistsError:
-			pass
 		if samples_mode == SAMPLES_ABSPATH:
 			for sample in self.samples():
 				sample.use_abspath()
@@ -364,22 +362,18 @@ class SFZ(Header):
 				sample.resolve_from(target_sfz_dir)
 		else:
 			samples_path = filetitle + '-samples'
-			try:
+			target_samples_dir = join(target_sfz_dir, samples_path)
+			if not exists(target_samples_dir):
 				mkdir(join(target_sfz_dir, samples_path))
-			except FileExistsError:
-				pass
 			for sample in self.samples():
-				try:
-					if samples_mode == SAMPLES_COPY:
-						sample.copy_to(target_sfz_dir, samples_path)
-					elif samples_mode == SAMPLES_MOVE:
-						sample.move_to(target_sfz_dir, samples_path)
-					elif samples_mode == SAMPLES_SYMLINK:
-						sample.symlink_to(target_sfz_dir, samples_path)
-					elif samples_mode == SAMPLES_HARDLINK:
-						sample.hardlink_to(target_sfz_dir, samples_path)
-				except FileExistsError:
-					pass
+				if samples_mode == SAMPLES_COPY:
+					sample.copy_to(target_sfz_dir, samples_path)
+				elif samples_mode == SAMPLES_MOVE:
+					sample.move_to(target_sfz_dir, samples_path)
+				elif samples_mode == SAMPLES_SYMLINK:
+					sample.symlink_to(target_sfz_dir, samples_path)
+				elif samples_mode == SAMPLES_HARDLINK:
+					sample.hardlink_to(target_sfz_dir, samples_path)
 		self.filename = filename + '.sfz' if ext == '' else filename
 		self.save()
 

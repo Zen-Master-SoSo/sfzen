@@ -22,7 +22,7 @@ Classes which are instantiated when parsing an .sfz file.
 All of these classes are constructed from a lark parser tree Token.
 """
 import re, logging
-from os import symlink, link, sep as path_separator
+from os import unlink, symlink, link as hardlink, sep as path_separator
 from os.path import abspath, exists, join, relpath
 from shutil import move, copy2 as copy
 from functools import cached_property, reduce
@@ -554,13 +554,24 @@ class Sample(Opcode):
 		"""
 		self._value = self.abspath
 
+	def _new_target(self, sfz_directory, samples_path):
+		"""
+		Returns a tuple ((str) value, (str) abspath),
+		where "value" is the new opcode value for this Sample, and
+		"abspath" is the target of a copy/move/symlink/hardlink op.
+		"""
+		return (
+			join(samples_path, self.basename),
+			join(sfz_directory, samples_path, self.basename)
+		)
+
 	def resolve_from(self, sfz_directory):
 		"""
 		Directs this Sample to use a relative path when writing .sfz.
 
 		"sfz_directory" is the directory in which the .sfz file is to be written.
 		"""
-		self.path = relpath(self.abspath, sfz_directory)
+		self._value = relpath(self.abspath, sfz_directory)
 
 	def copy_to(self, sfz_directory, samples_path):
 		"""
@@ -569,10 +580,14 @@ class Sample(Opcode):
 
 		"sfz_directory" is the directory in which the .sfz file is to be written.
 
-		"samples_path" must be a path relative the directory in which the .sfz
-		file is to be written.
+		"samples_path" is the directory where the samples are to be written, relative
+		to "sfz_directory".
 		"""
-		copy(self.abspath, self._fix_to_samples_dir(sfz_directory, samples_path))
+		value, abspath = self._new_target(sfz_directory, samples_path)
+		if exists(abspath):
+			unlink(abspath)
+		copy(self.abspath, abspath)
+		self._value = value
 
 	def move_to(self, sfz_directory, samples_path):
 		"""
@@ -581,10 +596,14 @@ class Sample(Opcode):
 
 		"sfz_directory" is the directory in which the .sfz file is to be written.
 
-		"samples_path" must be a path relative the directory in which the .sfz
-		file is to be written.
+		"samples_path" is the directory where the samples are to be written, relative
+		to "sfz_directory".
 		"""
-		move(self.abspath, self._fix_to_samples_dir(sfz_directory, samples_path))
+		value, abspath = self._new_target(sfz_directory, samples_path)
+		if exists(abspath):
+			unlink(abspath)
+		move(self.abspath, abspath)
+		self._value = value
 
 	def symlink_to(self, sfz_directory, samples_path):
 		"""
@@ -593,10 +612,14 @@ class Sample(Opcode):
 
 		"sfz_directory" is the directory in which the .sfz file is to be written.
 
-		"samples_path" must be a path relative the directory in which the .sfz
-		file is to be written.
+		"samples_path" is the directory where the samples are to be written, relative
+		to "sfz_directory".
 		"""
-		symlink(self.abspath, self._fix_to_samples_dir(sfz_directory, samples_path))
+		value, abspath = self._new_target(sfz_directory, samples_path)
+		if exists(abspath):
+			unlink(abspath)
+		symlink(self.abspath, abspath)
+		self._value = value
 
 	def hardlink_to(self, sfz_directory, samples_path):
 		"""
@@ -605,24 +628,14 @@ class Sample(Opcode):
 
 		"sfz_directory" is the directory in which the .sfz file is to be written.
 
-		"samples_path" must be a path relative the directory in which the .sfz
-		file is to be written.
+		"samples_path" is the directory where the samples are to be written, relative
+		to "sfz_directory".
 		"""
-		link(self.abspath, self._fix_to_samples_dir(sfz_directory, samples_path))
-
-	def _fix_to_samples_dir(self, sfz_directory, samples_path):
-		"""
-		Sets the "value" of this opcode to "<samples_path>/<sample basename>".
-
-		Returns the absolute path of the sample in the new samples_path.
-
-		"sfz_directory" is the directory in which the .sfz file is to be written.
-
-		"samples_path" must be a path relative the directory in which the .sfz
-		file is to be written.
-		"""
-		self._value = join(samples_path, self.basename)
-		return join(sfz_directory, samples_path, self.basename)
+		value, abspath = self._new_target(sfz_directory, samples_path)
+		if exists(abspath):
+			unlink(abspath)
+		hardlink(self.abspath, abspath)
+		self._value = value
 
 
 class Define(_Modifier):
