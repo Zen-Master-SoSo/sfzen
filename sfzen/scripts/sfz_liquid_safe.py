@@ -38,9 +38,10 @@ def main():
 	if not os.path.isfile(options.Source):
 		p.exit(f'"{options.Source}" is not a file')
 	target = options.Target or options.Source
-	log_level = logging.DEBUG if options.verbose else logging.ERROR
-	log_format = "[%(filename)24s:%(lineno)4d] %(levelname)-8s %(message)s"
-	logging.basicConfig(level = log_level, format = log_format)
+	logging.basicConfig(
+		level = logging.DEBUG if options.verbose else logging.ERROR,
+		format = "[%(filename)24s:%(lineno)3d] %(message)s"
+	)
 
 	sfz = SFZ(options.Source)
 	clean(sfz)
