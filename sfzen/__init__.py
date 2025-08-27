@@ -300,7 +300,7 @@ class SFZ(Header):
 		for sub in self._subheaders:
 			if isinstance(sub, Global):
 				return sub
-		global_header = Global(None, None)
+		global_header = Global()
 		self._subheaders.insert(0, global_header)
 		global_header.parent = self
 		return global_header
@@ -394,7 +394,7 @@ class SFZ(Header):
 
 		simplified_sfz = SFZ()
 		simplified_sfz.basedir = self.basedir
-		global_header = Global(None, None)
+		global_header = Global()
 
 		regions = [
 			self._clone_sample_region(sample) \
@@ -430,7 +430,6 @@ class SFZ(Header):
 				for opstring in region.opstrings():
 					if opstring.split('=', 1)[0] != 'sample':
 						opstring_counts[opstring] += 1
-			print(opstring_counts)
 			for opstring, count in opstring_counts.items():
 				if count >= min_count:
 					opcode, value = opstring.split('=', 1)
@@ -448,7 +447,7 @@ class SFZ(Header):
 			key_grouped_regions[midi_note_sort_key(region)].append(region)
 		for regions in key_grouped_regions.values():
 			if len(regions) > 1:
-				group = Group(None, None)
+				group = Group()
 				for region in regions:
 					group.append_subheader(region)
 				common_opstrings = group.common_opstrings()
@@ -487,7 +486,7 @@ class SFZ(Header):
 		return simplified_sfz
 
 	def _clone_sample_region(self, sample):
-		region = Region(None, None)
+		region = Region()
 		for opcode in sample.parent.inherited_opcodes().values():
 			region.append_opcode(opcode)
 		return region
