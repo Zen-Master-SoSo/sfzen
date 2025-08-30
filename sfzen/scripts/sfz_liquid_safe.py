@@ -27,27 +27,20 @@ from sfzen.cleaners.liquidsfz import clean
 
 def main():
 	p = argparse.ArgumentParser()
-	p.add_argument('Source', type=str,
+	p.add_argument('Filename', type=str, nargs='+',
 		help='SFZ file to clean up')
-	p.add_argument('Target', type=str, nargs='?',
-		help='Destination SFZ. If not provided, the original SFZ will be modified.')
 	p.add_argument("--verbose", "-v", action="store_true",
 		help="Show more detailed debug information")
 	p.epilog = __doc__
 	options = p.parse_args()
-	if not os.path.isfile(options.Source):
-		p.exit(f'"{options.Source}" is not a file')
-	target = options.Target or options.Source
 	logging.basicConfig(
 		level = logging.DEBUG if options.verbose else logging.ERROR,
 		format = "[%(filename)24s:%(lineno)3d] %(message)s"
 	)
 
-	sfz = SFZ(options.Source)
-	clean(sfz)
-	if options.Target:
-		sfz.save_as(options.Target)
-	else:
+	for filename in options.Filename:
+		sfz = SFZ(filename)
+		clean(sfz)
 		sfz.save()
 
 

@@ -264,10 +264,8 @@ class SFZ(Header):
 		self.includes = []
 		self.parse_errors = []
 		if filename is None:
-			self.name = '[unnamed SFZ]'
 			self.basedir = None
 		else:
-			self.name = basename(filename)
 			self.basedir = dirname(self.filename) if basedir is None else basedir
 			if SFZ._parser is None:
 				cache_file = join(user_cache_dir(), 'sfzen')
@@ -277,6 +275,10 @@ class SFZ(Header):
 				tree = SFZ._parser.parse(f.read() + "\n")
 			xformer = SFZXformer(self)
 			xformer.transform(tree)
+
+	@property
+	def name(self):
+		return '[Unnamed SFZ]' if self.filename is None else basename(self.filename)
 
 	def may_contain(self, _):
 		return True
@@ -382,7 +384,7 @@ class SFZ(Header):
 		Exports this SFZ to .sfz format.
 		"stream" may be any file-like object, including sys.stdout.
 		"""
-		stream.write(f'{COMMENT_DIVIDER}// {self.filename}\n{COMMENT_DIVIDER}\n')
+		stream.write(f'{COMMENT_DIVIDER}// {self.name}\n{COMMENT_DIVIDER}\n')
 		for sub in self._subheaders:
 			sub.write(stream)
 
