@@ -23,7 +23,7 @@ All of these classes are constructed from a lark parser tree Token.
 """
 import re, logging
 from os import unlink, symlink, link as hardlink, sep as path_separator
-from os.path import abspath, exists, islink, join, relpath
+from os.path import abspath, exists, islink, join, relpath, realpath
 from shutil import move, copy2 as copy
 from functools import cached_property, reduce
 try:
@@ -571,7 +571,7 @@ class Sample(Opcode):
 
 		"sfz_directory" is the directory in which the .sfz file is to be written.
 		"""
-		self._value = relpath(self.abspath, sfz_directory)
+		self._value = relpath(realpath(self.abspath), realpath(sfz_directory))
 
 	def copy_to(self, sfz_directory, samples_path):
 		"""
@@ -616,9 +616,9 @@ class Sample(Opcode):
 		to "sfz_directory".
 		"""
 		value, path = self._new_target(sfz_directory, samples_path)
-		if islink(path):
+		if exists(path):
 			unlink(path)
-		symlink(self.abspath, path)
+		symlink(realpath(self.abspath), realpath(path))
 		self._value = value
 
 	def hardlink_to(self, sfz_directory, samples_path):
