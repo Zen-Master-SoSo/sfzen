@@ -100,16 +100,22 @@ class Header(_SFZElement):
 	def append_opcode(self, opcode):
 		"""
 		Append an opcode to this Header.
+
+		Returns the appended opcode.
 		"""
 		self._opcodes[opcode.name] = opcode
 		opcode.parent = self
+		return opcode
 
 	def append_subheader(self, subheader):
 		"""
-		Append a subheader to this Header
+		Append a subheader to this Header.
+
+		Returns the appended subheader.
 		"""
 		self._subheaders.append(subheader)
 		subheader.parent = self
+		return subheader
 
 	@property
 	def opcodes(self):
@@ -184,13 +190,21 @@ class Header(_SFZElement):
 	def iopcode(self, name):
 		"""
 		Returns an Opcode with the given name, if one exists in this Header or any of
-		its ancestors. Returns None if no such opcode exists.
+		its ancestors.
+
+		Returns None if no such opcode exists.
 		"""
 		return self._opcodes[name] if name in self._opcodes \
 			else None if self._parent is None \
 			else self._parent.iopcode(name)
 
 	def __getattr__(self, name):
+		"""
+		Returns the value of the opcode with the given "name" contained in this Header,
+		or any of its ancestors.
+
+		Raises AttributeError
+		"""
 		try:
 			return super().__getattribute__(name)
 		except AttributeError as err:
@@ -202,6 +216,11 @@ class Header(_SFZElement):
 			raise err
 
 	def __setattr__(self, name, value):
+		"""
+		Sets the value of the opcode with the given "name", if it exists.
+
+		Creates the opcode inside this Header, if it does not yet exist.
+		"""
 		if name[0] == '_':
 			super().__setattr__(name, value)
 		elif name in self.__dict__:
@@ -339,6 +358,9 @@ class Region(Header):
 	"""
 
 	def may_contain(self, header):
+		"""
+		Used during parsing to determine where to append a newly parsed Header
+		"""
 		return type(header) not in [Global, Master, Group, Region]
 
 	def is_triggerd_by(self, key=None, lokey=None, hikey=None, lovel=None, hivel=None):
@@ -361,6 +383,14 @@ class Region(Header):
 		if hivel is not None and 'hivel' in ops and ops['hivel'].value < hivel:
 			return False
 		return True
+
+	@property
+	def sample(self):
+		"""
+		Returns the Sample opcode contained in this <region>
+		Returns None if no Sample has yet defined.
+		"""
+		return self._
 
 
 class Control(Header):
@@ -512,9 +542,16 @@ class Sample(Opcode):
 
 	def __init__(self, name, value, meta = None, basedir = None):
 		"""
-		When instantiating a Sample, the "name" and "_value" of the given path
-		is set in Opcode.__init__(). Afterwards, the "path" of the Sample may be
-		manipulated without destroying the initial value.
+		When instantiating a Sample, the "name" is always "Sample"; the "value"
+		is the path to the sample as it appears in the SFZ. In Opcode.__init__(),
+		the internal "_value" property is set to the given value.
+
+		The "meta" argument is passed to the constructor during parsing of an existing
+		SFZ file. You can safely ignore it when constructing an SFZ from scratch.
+
+		"basedir" would be the name of the directory containing the SFZ which owns this
+		Sample. This value is used for determing the relative path to a sample defined
+		with an absolute path.
 		"""
 		super().__init__(name, value, meta)
 		self.basedir = basedir

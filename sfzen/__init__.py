@@ -283,6 +283,13 @@ class SFZ(Header):
 	def may_contain(self, _):
 		return True
 
+	def add_region(self):
+		"""
+		Creates a <region> header and returns it.
+		"""
+		self.append_subheader(Region())
+		return self._subheaders[-1]
+
 	def append_opcode(self, opcode):
 		if not self.is_include:
 			raise RuntimeError("Opcode outside of header")
