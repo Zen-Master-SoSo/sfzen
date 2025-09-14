@@ -278,7 +278,7 @@ class SFZ(Header):
 
 	@property
 	def name(self):
-		return '[Unnamed SFZ]' if self.filename is None else basename(self.filename)
+		return '[Unnamed]' if self.filename is None else basename(self.filename)
 
 	def may_contain(self, _):
 		return True
