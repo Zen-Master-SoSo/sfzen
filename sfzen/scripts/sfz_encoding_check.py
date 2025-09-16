@@ -37,7 +37,7 @@ def main():
 	parser.epilog = """
 	Check the format of samples used by the given SFZ(s).
 	"""
-	parser.add_argument('Filename', type=str, nargs='+',
+	parser.add_argument('Filename', type = str, nargs = '+',
 		help = 'File or directory to inspect.')
 	parser.add_argument("--sample-rate", "-s", type = int, default = 48000)
 	parser.add_argument("--bitdepth", "-b", type = int, default = 16)

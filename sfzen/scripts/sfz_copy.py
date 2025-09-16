@@ -34,25 +34,25 @@ from sfzen import (
 
 def main():
 	p = argparse.ArgumentParser()
-	p.add_argument('Source', type=str, help='SFZ file to copy from')
-	p.add_argument('Target', type=str, nargs='?', help='Destination to copy to')
-	p.add_argument("--simplify", "-S", action="store_true",
-		help='Reduce the number of opcode declarations by forming groups which define common opcodes.')
+	p.add_argument('Source', type = str, help = 'SFZ file to copy from')
+	p.add_argument('Target', type = str, nargs = '?', help = 'Destination to copy to')
+	p.add_argument("--simplify", "-S", action = "store_true",
+		help = 'Create <group> and <global> headers defining common opcodes.')
 	group = p.add_mutually_exclusive_group()
-	group.add_argument("--abspath", "-a", action="store_true",
-		help='Point to the original samples - absolute path')
-	group.add_argument("--relative", "-r", action="store_true",
-		help='Point to the original samples - relative path')
-	group.add_argument("--copy", "-c", action="store_true",
-		help='Copy samples to the "./samples" folder')
-	group.add_argument("--symlink", "-s", action="store_true",
-		help='Create symlinks in the "./samples" folder')
-	group.add_argument("--hardlink", "-l", action="store_true",
-		help='Hardlink samples in the "./samples" folder')
-	p.add_argument("--dry-run", "-n", action="store_true",
-		help="Do not make changes - just show what would be changed.")
-	p.add_argument("--verbose", "-v", action="store_true",
-		help="Show more detailed debug information")
+	group.add_argument("--abspath", "-a", action = "store_true",
+		help = 'Point to the original samples - absolute path')
+	group.add_argument("--relative", "-r", action = "store_true",
+		help = 'Point to the original samples - relative path')
+	group.add_argument("--copy", "-c", action = "store_true",
+		help = 'Copy samples to the "./samples" folder')
+	group.add_argument("--symlink", "-s", action = "store_true",
+		help = 'Create symlinks in the "./samples" folder')
+	group.add_argument("--hardlink", "-l", action = "store_true",
+		help = 'Hardlink samples in the "./samples" folder')
+	p.add_argument("--dry-run", "-n", action = "store_true",
+		help = "Do not make changes - just show what would be changed.")
+	p.add_argument("--verbose", "-v", action = "store_true",
+		help = "Show more detailed debug information")
 	p.epilog = __doc__
 	options = p.parse_args()
 	if not os.path.isfile(options.Source):

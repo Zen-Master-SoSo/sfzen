@@ -37,12 +37,12 @@ def main():
 	parser.epilog = """
 	List all the opcodes used by the given SFZ[s].
 	"""
-	parser.add_argument('Filename', type=str, nargs='+',
-		help='File or directory to inspect.')
-	parser.add_argument("--recurse", "-r", action="store_true",
-		help="Recurse into subdirectories.")
-	parser.add_argument("--verbose", "-v", action="store_true",
-		help="Show more detailed debug information.")
+	parser.add_argument('Filename', type = str, nargs = '+',
+		help = 'File or directory to inspect.')
+	parser.add_argument("--recurse", "-r", action = "store_true",
+		help = "Recurse into subdirectories.")
+	parser.add_argument("--verbose", "-v", action = "store_true",
+		help = "Show more detailed debug information.")
 	options = parser.parse_args()
 	logging.basicConfig(
 		level = logging.DEBUG if options.verbose else logging.ERROR,
@@ -57,7 +57,7 @@ def main():
 		elif isfile(path):
 			file_list = [path]
 	opcodes = set()
-	with IncrementalBar('Reading .sfz', max=len(file_list)) as progress_bar:
+	with IncrementalBar('Reading .sfz', max = len(file_list)) as progress_bar:
 		for filename in file_list:
 			try:
 				opcodes |= SFZ(filename).opcodes_used()

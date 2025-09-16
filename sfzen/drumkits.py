@@ -18,9 +18,9 @@
 #  MA 02110-1301, USA.
 #
 """
-Provides Drumkit SFZ wrapper which allows import / copy operations.
+Provides Drumkit SFZ wrapper.
 """
-from os.path import basename
+from os.path import basename, dirname
 from copy import deepcopy
 from functools import reduce
 from operator import and_, or_
@@ -182,6 +182,14 @@ class PercussionInstrument:
 		self.regions = [ Region(region, filename) for region in regions ]
 		self.source_filename = filename
 
+	@property
+	def parent(self):
+		return self._parent
+
+	@parent.setter
+	def parent(self, parent):
+		self._parent = parent
+
 	def empty(self):
 		"""
 		Returns True if there are no regions defined for this Instrument's pitch
@@ -197,7 +205,7 @@ class PercussionInstrument:
 		a parent header.
 		"""
 		stream.write(f'// "{self.name}" - key {self.note.pitch} / {self.note}\n')
-		stream.write(f'// Source: {self.source_filename}\n\n')
+		stream.write(f'// Source: {self.source_filename}\n')
 		if len(self.regions) > 1:
 			# Multiple regions; look for common opstrings:
 			group_opstrings = self.common_opstrings() - global_opstrings
@@ -262,20 +270,40 @@ class PercussionInstrument:
 			if 'sample' in region.opcodes:
 				yield region.opcodes['sample']
 
+	def walk(self, depth = 0):
+		"""
+		Generator which recusively yields every element contained in this Drumkit,
+		Each iteration returns a tuple (_SFZElement, (int) depth)
+		"""
+		yield (self, depth)
+		depth += 1
+		for region in self.regions:
+			yield from region.walk(depth)
+
+	def __repr__(self):
+		return f"<PercussionInstrument {self.name}>"
+
 
 class PercussionGroup:
 	"""
 	Class used for organizing instruments in a Drumkit, not to be confused with a
 	<group> header in an SFZ file.
 
-	Allows for the user to select an entire category of instruments with one click
-	from the gui.
+	Allows for the manipulation of an entire category of instruments.
 	"""
 
 	def __init__(self, group_id):
 		self.group_id = group_id
 		self.name = group_id.replace('_', ' ').title()
 		self.instruments = { }
+
+	@property
+	def parent(self):
+		return self._parent
+
+	@parent.setter
+	def parent(self, parent):
+		self._parent = parent
 
 	def append_instrument(self, pitch, regions, filename):
 		"""
@@ -331,12 +359,32 @@ class PercussionGroup:
 		return reduce(or_, [ instrument.samples_used() \
 			for instrument in self.instruments.values() ], set())
 
+	def regions(self):
+		"""
+		Generator which yields every Region header
+		"""
+		for instrument in self.instruments.values():
+			yield from instrument.regions
+
 	def samples(self):
 		"""
 		Generator which yields every sample opcode (Opcode class)
 		"""
 		for instrument in self.instruments.values():
 			yield from instrument.samples()
+
+	def walk(self, depth = 0):
+		"""
+		Generator which recusively yields every element contained in this Drumkit,
+		Each iteration returns a tuple (_SFZElement, (int) depth)
+		"""
+		yield (self, depth)
+		depth += 1
+		for instrument in self.instruments.values():
+			yield from instrument.walk(depth)
+
+	def __repr__(self):
+		return f"<PercussionGroup {self.name}>"
 
 
 class Drumkit(SFZ):
@@ -347,20 +395,37 @@ class Drumkit(SFZ):
 	its regions to a PercussionInstrument. These are organized under
 	PercussionGroup objects.
 
-	You may instantiate an empty Drumkit ohect and import instruments or groups of
+	You may instantiate an empty Drumkit object and import instruments or groups of
 	instruments from other Drumkit objects.
+
+	Writing a Drumkit produces a standard SFZ formatted text file. The only
+	evidence of the grouping of Regions under PercussionInstrument /
+	PercussionGroup appear in the comments. The SFZ produced will contain only
+	<region> headers (No <group>, <global>, etc.)
 	"""
 
-	def __init__(self, filename=None):
+	def __init__(self, filename = None):
+		#super().__init__(filename)
 		self._parent = None
+		self._opcodes = {}
 		self.groups = { group_id:PercussionGroup(group_id) for group_id in GROUP_PITCHES }
 		self.filename = filename
-		if self.filename is not None:
+		if self.filename is None:
+			self.basedir = None
+			self._subheaders = []
+		else:
+			self.basedir = dirname(self.filename)
 			sfz = SFZ(self.filename)
 			for pitch, group_id in PITCH_GROUPS.items():
-				regions = list(sfz.regions_for(lokey=pitch, hikey=pitch))
+				regions = list(sfz.regions_for(lokey = pitch, hikey = pitch))
 				if regions:
 					self.groups[group_id].append_instrument(pitch, regions, filename)
+			self.adopt_regions()
+
+	def adopt_regions(self):
+		self._subheaders = list(self.regions())
+		for subheader in self._subheaders:
+			subheader.parent = self
 
 	def write(self, stream):
 		"""
@@ -377,31 +442,26 @@ class Drumkit(SFZ):
 			if not group.empty():
 				group.write(stream, global_opstrings)
 
-	def import_group(self, group_id, source_kit):
+	def import_group(self, group):
 		"""
 		Do a deep copy from the given Drumkit, of the specified group.
-		group_id:	(str)		Group ID, as from GROUP_PITCHES
-		source_kit	(Drumkit)	Source to copy from
+		(PercussionGroup) group: Source to copy from
+		"""
+		self.groups[group.group_id] = deepcopy(group)
+		self.adopt_regions()
 
-		Raises IndexError if the specified group was not found in the source kit.
+	def import_instrument(self, instrument):
 		"""
-		self.groups[group_id] = deepcopy(source_kit.groups[group_id])
-
-	def import_instrument(self, pitch_or_id, source_kit):
+		Do a deep copy from the given PercussionInstrument
+		(PercussionInstrument) instrument: Source to copy from
 		"""
-		Do a deep copy from the given Drumkit, of the instrument tied to the spectfied
-		pitch.
-		pitch:		(int)		MIDI note number of the instrument to copy.
-		source_kit	(Drumkit)	Source to copy from
-		"""
-		pitch, _ = pitch_id_tuple(pitch_or_id)
-		group_id = PITCH_GROUPS[pitch]
-		self.groups[group_id].instruments[pitch] = \
-			deepcopy(source_kit.instrument(pitch))
+		group_id = PITCH_GROUPS[instrument.pitch]
+		self.groups[group_id].instruments[instrument.pitch] = deepcopy(instrument)
+		self.adopt_regions()
 
 	def delete_instrument(self, pitch_or_id):
 		"""
-		Removes an instrument - quicker than reimporting everything when changes are made.
+		Removes an instrument.
 		"""
 		pitch, _ = pitch_id_tuple(pitch_or_id)
 		group_id = PITCH_GROUPS[pitch]
@@ -416,6 +476,13 @@ class Drumkit(SFZ):
 		# Filter empty:
 		sets = [ set_ for set_ in sets if len(set_) ]
 		return reduce(and_, sets) if sets else set()
+
+	def regions(self):
+		"""
+		Generator which yields every Region header
+		"""
+		for group in self.groups.values():
+			yield from group.regions()
 
 	def samples(self):
 		"""
@@ -467,7 +534,25 @@ class Drumkit(SFZ):
 		"""
 		return self.groups[group_id]
 
-	def __str__(self):
+	def kitwalk(self, depth = 0):
+		"""
+		Generator which recusively yields every element contained in this Drumkit,
+		ordered by PercussionGroup -> PercussionInstrument -> Region -> Opcode.
+		Each iteration returns a tuple (_SFZElement, (int) depth)
+		"""
+		yield (self, depth)
+		depth += 1
+		for group in self.groups.values():
+			yield from group.walk(depth)
+
+	def dump(self):
+		"""
+		Print (to stdout) a concise outline of this SFZ.
+		"""
+		for elem, depth in self.kitwalk():
+			print('  ' * depth + repr(elem))
+
+	def __repr__(self):
 		return f"<Drumkit {self.name}>"
 
 

@@ -25,6 +25,7 @@ import re, logging
 from os import unlink, symlink, link as hardlink, sep as path_separator
 from os.path import abspath, exists, islink, join, relpath, realpath
 from shutil import move, copy2 as copy
+from copy import deepcopy
 from functools import cached_property, reduce
 try:
 	from functools import cache
@@ -89,6 +90,24 @@ class Header(_SFZElement):
 		super().__init__(meta)
 		self._subheaders = []
 		self._opcodes = {}
+
+	def __deepcopy__(self, memo):
+		cls = self.__class__
+		result = cls.__new__(cls)
+		result._subheaders = [
+			deepcopy(subheader, memo) \
+			for subheader in self._subheaders
+		]
+		result._opcodes = {
+			key:deepcopy(opcode, memo) \
+			for key, opcode in self._opcodes.items()
+		}
+		for subheader in result._subheaders:
+			subheader.parent = result
+		for opcode in result._opcodes.values():
+			opcode.parent = result
+		memo[id(self)] = result
+		return result
 
 	def may_contain(self, _):
 		"""
@@ -205,15 +224,14 @@ class Header(_SFZElement):
 
 		Raises AttributeError
 		"""
-		try:
+		if name[0] == '_':
 			return super().__getattribute__(name)
-		except AttributeError as err:
-			opcode = self.iopcode(name)
-			if opcode:
-				return opcode.value
-			if normal_opcode(name):
-				return None
-			raise err
+		opcode = self.iopcode(name)
+		if opcode:
+			return opcode.value
+		if normal_opcode(name):
+			return None
+		raise AttributeError(name)
 
 	def __setattr__(self, name, value):
 		"""
@@ -363,7 +381,7 @@ class Region(Header):
 		"""
 		return type(header) not in [Global, Master, Group, Region]
 
-	def is_triggerd_by(self, key=None, lokey=None, hikey=None, lovel=None, hivel=None):
+	def is_triggerd_by(self, key = None, lokey = None, hikey = None, lovel = None, hivel = None):
 		"""
 		Returns boolean True/False if this Region matches the given criteria.
 		For example, to test if this region plays Middle C at any velocity:
@@ -445,6 +463,18 @@ class Opcode(_SFZElement):
 		self.name = name
 		self.value = value
 
+	def __deepcopy__(self, memo):
+		cls = self.__class__
+		result = cls.__new__(cls, self.name, self.value)
+		result.name = self.name
+		if cls is Sample:
+			result.basedir = self.basedir
+			result._value = self.abspath
+		else:
+			result._value = self._value
+		memo[id(self)] = result
+		return result
+
 	@property
 	def value(self):
 		"""
@@ -455,7 +485,8 @@ class Opcode(_SFZElement):
 	@value.setter
 	def value(self, value):
 		"""
-		Converts the given value to the type defined in the opcode definition.
+		Set the value of this Opcode, after converting the given "value" to
+		the data type of this Opcode, (see "type()").
 		"""
 		if self.type is float:
 			self._value = float(value)
@@ -472,6 +503,9 @@ class Opcode(_SFZElement):
 
 	@cached_property
 	def type(self):
+		"""
+		Returns the data type (i.e. float, int, or str) of this Opcode.
+		"""
 		return data_type(self.name)
 
 	@cached_property
@@ -523,7 +557,7 @@ class Opcode(_SFZElement):
 		return '%s=%s' % (self.name, self._value)
 
 	def __repr__(self):
-		return f'Opcode {self}'
+		return f'{self.__class__} {self}'
 
 	def write(self, stream):
 		"""

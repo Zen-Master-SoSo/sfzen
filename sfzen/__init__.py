@@ -118,7 +118,7 @@ class SFZXformer(Transformer):
 		self.sfz = sfz
 		self.current_header = self.sfz
 
-	@v_args(meta=True)
+	@v_args(meta = True)
 	def header(self, arg1, arg2):
 		"""
 		Transformer function which handles <header> tokens.
@@ -145,7 +145,7 @@ class SFZXformer(Transformer):
 		self.current_header.append_subheader(header)
 		self.current_header = header
 
-	@v_args(meta=True)
+	@v_args(meta = True)
 	def define_macro(self, arg1, arg2):
 		"""
 		Transformer function which handles <define> tokens.
@@ -156,7 +156,7 @@ class SFZXformer(Transformer):
 		except Exception as e:
 			self.sfz.append_parse_error(e, meta)
 
-	@v_args(meta=True)
+	@v_args(meta = True)
 	def include_macro(self, arg1, arg2):
 		"""
 		Transformer function which handles <include> tokens.
@@ -183,7 +183,7 @@ class SFZXformer(Transformer):
 		except Exception as e:
 			self.sfz.append_parse_error(e, meta)
 
-	@v_args(meta=True)
+	@v_args(meta = True)
 	def opcode_exp(self, arg1, arg2):
 		"""
 		Transformer function which handles <opcode> tokens.
@@ -206,7 +206,7 @@ class SFZXformer(Transformer):
 		except Exception as e:
 			self.sfz.append_parse_error(e, meta)
 
-	@v_args(meta=True)
+	@v_args(meta = True)
 	def start(self, arg1, arg2):
 		"""
 		Transformer function which handles the root of the sfz.
@@ -245,7 +245,7 @@ class SFZ(Header):
 
 	_parser = None
 
-	def __init__(self, filename = None, defines = None, basedir = None, is_include = False):
+	def __init__(self, filename = None, *, defines = None, basedir = None, is_include = False):
 		"""
 		filename: (str) Path to an .sfz file.
 
@@ -270,7 +270,7 @@ class SFZ(Header):
 			if SFZ._parser is None:
 				cache_file = join(user_cache_dir(), 'sfzen')
 				grammar = join(dirname(__file__), 'res', 'sfz.lark')
-				SFZ._parser = Lark.open(grammar, parser='lalr', propagate_positions=True, cache=cache_file)
+				SFZ._parser = Lark.open(grammar, parser = 'lalr', propagate_positions = True, cache = cache_file)
 			with open(filename) as f:
 				tree = SFZ._parser.parse(f.read() + "\n")
 			xformer = SFZXformer(self)
@@ -328,7 +328,7 @@ class SFZ(Header):
 		"""
 		return reduce(or_, [sub.opcodes_used() for sub in self._subheaders], set())
 
-	def regions_for(self, key=None, lokey=None, hikey=None, lovel=None, hivel=None):
+	def regions_for(self, key = None, lokey = None, hikey = None, lovel = None, hivel = None):
 		"""
 		Generator function which yields each region contained in this SFZ which matches
 		the given criteria.
