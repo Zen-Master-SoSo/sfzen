@@ -22,7 +22,7 @@ Simple object-oriented SFZ parsing and manipulation.
 """
 import logging, re
 from os import mkdir
-from os.path import abspath, basename, dirname, join, splitext, exists
+from os.path import realpath, basename, dirname, join, splitext, exists
 from math import ceil
 from operator import or_
 from functools import reduce
@@ -358,7 +358,7 @@ class SFZ(Header):
 			SAMPLES_MOVE		SAMPLES_SYMLINK		SAMPLES_HARDLINK
 
 		"""
-		filename = abspath(filename)
+		filename = realpath(filename)
 		target_sfz_dir = dirname(filename)
 		filetitle, ext = splitext(basename(filename))
 		if not exists(target_sfz_dir):
