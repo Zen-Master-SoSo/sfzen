@@ -607,6 +607,13 @@ class Sample(Opcode):
 		return path if exists(path) else abspath(join(self.basedir, *self._path_parts))
 
 	@property
+	def relpath(self):
+		"""
+		Returns (str) the path to the sample relative to the parent SFZ
+		"""
+		return join(*self._path_parts)
+
+	@property
 	def basename(self):
 		"""
 		Returns (str) the basename of the sample

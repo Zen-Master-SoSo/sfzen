@@ -25,6 +25,7 @@ sfz-encoding-check = "sfzen.scripts.sfz_encoding_check:main"
 sfz-opcode-usage = "sfzen.scripts.sfz_opcode_usage:main"
 sfz-resample = "sfzen.scripts.sfz_resample:main"
 sfz-liquid-safe = "sfzen.scripts.sfz_liquid_safe:main"
+sfz-samples = "sfzen.scripts.sfz_samples:main"
 
 [build-system]
 requires = ["flit_core >=3.2,<4"]
