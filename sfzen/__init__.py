@@ -28,6 +28,7 @@ from operator import or_
 from functools import reduce
 from collections import defaultdict
 from appdirs import user_cache_dir
+from shutil import rmtree
 from lark import Lark, Transformer, v_args
 from lark.tree import Meta
 from log_soso import log_error
@@ -347,7 +348,7 @@ class SFZ(Header):
 			self.write(fob)
 		return self
 
-	def save_as(self, filename, samples_mode = SAMPLES_ABSPATH):
+	def save_as(self, filename, samples_mode = SAMPLES_ABSPATH, overwrite = True):
 		"""
 		Save to the given filename.
 
@@ -372,8 +373,12 @@ class SFZ(Header):
 		else:
 			samples_path = filetitle + '-samples'
 			target_samples_dir = join(target_sfz_dir, samples_path)
-			if not exists(target_samples_dir):
-				mkdir(join(target_sfz_dir, samples_path))
+			if exists(target_samples_dir):
+				if overwrite:
+					rmtree(target_samples_dir)
+				else:
+					raise RuntimeError(f'Sample dir "{target_samples_dir}" already exists')
+			mkdir(target_samples_dir)
 			for sample in self.samples():
 				if samples_mode == SAMPLES_COPY:
 					sample.copy_to(target_sfz_dir, samples_path)
