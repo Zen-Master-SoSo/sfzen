@@ -18,7 +18,7 @@
 #  MA 02110-1301, USA.
 #
 """
-Prints paths to samples used in a given SFZ. By default, prints the path relpath to the SFZ.
+Prints paths to samples used in a given SFZ. By default, prints the path relative to the SFZ.
 """
 import sys, logging, argparse
 from os import linesep
@@ -41,6 +41,7 @@ def sfz_paths(filename, options):
 			return set(relpath(f) for f in sample_paths)
 		return set(sample_paths)
 	return set(sample.relpath for sample in sfz.samples())
+
 
 def main():
 	p = argparse.ArgumentParser()
@@ -67,7 +68,11 @@ def main():
 		format = '[%(filename)24s:%(lineno)3d] %(message)s'
 	)
 
-	sets = [ sfz_paths(filename, options) for filename in options.Filename ]
+	try:
+		sets = [ sfz_paths(filename, options) for filename in options.Filename ]
+	except OSError as e:
+		print(e)
+		return 1
 
 	if options.common:
 		files = reduce(and_, sets)
