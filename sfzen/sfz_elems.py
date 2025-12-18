@@ -408,7 +408,7 @@ class Region(Header):
 		Returns the Sample opcode contained in this <region>
 		Returns None if no Sample has yet defined.
 		"""
-		return self._
+		return self.opcode('sample')
 
 
 class Control(Header):
@@ -800,6 +800,7 @@ class MinValidator(_Validator):
 
 	def __init__(self, lowval, type_):
 		self.lowval = lowval
+		self.highval = None
 		self.type = type_
 
 	def is_valid(self, value, validate_type = True):

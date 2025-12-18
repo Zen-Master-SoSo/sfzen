@@ -84,22 +84,19 @@ def opcode_sorted(opcodes):
 	Sort a list of Opcode objects according to preferred OPCODE_SORT_ORDER.
 	"""
 	return sorted(opcodes, key = lambda opcode: \
-		OPCODE_SORT_ORDER.index(opcode.name) \
-		if opcode.name in OPCODE_SORT_ORDER else 1000)
+		OPCODE_SORT_ORDER.index(opcode.name) if opcode.name in OPCODE_SORT_ORDER else 1000)
 
 def name_sorted(opcodes):
 	"""
 	Sort a list of strings (opcode names), according to preferred OPCODE_SORT_ORDER.
 	"""
 	return sorted(opcodes, key = lambda opcode: \
-		OPCODE_SORT_ORDER.index(opcode) \
-		if opcode in OPCODE_SORT_ORDER else 1000)
+		OPCODE_SORT_ORDER.index(opcode) if opcode in OPCODE_SORT_ORDER else 1000)
 
 def opstring_sorted(opstrings):
 	def sort_val(opstring):
 		op = opstring.split('=', 1)[0]
-		return OPCODE_SORT_ORDER.index(op) \
-		if op in OPCODE_SORT_ORDER else 1000
+		return OPCODE_SORT_ORDER.index(op) if op in OPCODE_SORT_ORDER else 1000
 	return sorted(opstrings, key = sort_val)
 
 def midi_note_sort_key(region):
