@@ -25,8 +25,7 @@ from os.path import isdir, isfile, join
 from glob import glob
 from lark.exceptions import LarkError
 from progress.bar import IncrementalBar
-from sfzen import SFZ
-from sfzen.sort import name_sorted
+from sfzen import SFZ, sorted_opcode_names
 
 
 def main():
@@ -65,7 +64,7 @@ def main():
 				print()
 				print(f'Parse error in "{filename}"')
 			progress_bar.next()
-	print("\n".join(name_sorted(opcodes)))
+	print("\n".join(sorted_opcode_names(opcodes)))
 
 
 if __name__ == "__main__":

@@ -25,9 +25,7 @@ from copy import deepcopy
 from functools import reduce
 from operator import and_, or_
 from midi_notes import Note, MIDI_DRUM_IDS, MIDI_DRUM_PITCHES, MIDI_DRUM_NAMES
-from sfzen import COMMENT_DIVIDER, SFZ, KEY_OPCODES
-from sfzen.sort import opstring_sorted
-from sfzen.sfz_elems import Region as SFZRegion
+from sfzen import COMMENT_DIVIDER, KEY_OPCODES, sorted_opstrings, SFZ, Region as SFZRegion
 
 # -----------------------------------------------------------------
 # constants
@@ -156,7 +154,7 @@ class Region(SFZRegion):
 		defined in a parent header.
 		"""
 		stream.write("<region>\n")
-		for opstring in opstring_sorted(self.opstrings() - region_exclude):
+		for opstring in sorted_opstrings(self.opstrings() - region_exclude):
 			stream.write(opstring + '\n')
 		stream.write('\n')
 
@@ -232,7 +230,7 @@ class PercussionInstrument:
 			]
 			group_opstrings.append(f'key={keyvals[0]}')
 		stream.write('<group>\n')
-		for opstring in opstring_sorted(group_opstrings):
+		for opstring in sorted_opstrings(group_opstrings):
 			stream.write(opstring + '\n')
 		stream.write('\n')
 		for region in self.regions:
@@ -273,7 +271,7 @@ class PercussionInstrument:
 	def walk(self, depth = 0):
 		"""
 		Generator which recusively yields every element contained in this Drumkit,
-		Each iteration returns a tuple (_SFZElement, (int) depth)
+		Each iteration returns a tuple (Element, (int) depth)
 		"""
 		yield (self, depth)
 		depth += 1
@@ -376,7 +374,7 @@ class PercussionGroup:
 	def walk(self, depth = 0):
 		"""
 		Generator which recusively yields every element contained in this Drumkit,
-		Each iteration returns a tuple (_SFZElement, (int) depth)
+		Each iteration returns a tuple (Element, (int) depth)
 		"""
 		yield (self, depth)
 		depth += 1
@@ -435,7 +433,7 @@ class Drumkit(SFZ):
 		global_opstrings = self.common_opstrings()
 		if global_opstrings:
 			stream.write('\n<global>\n')
-			for opstring in opstring_sorted(global_opstrings):
+			for opstring in sorted_opstrings(global_opstrings):
 				stream.write(opstring + '\n')
 			stream.write('\n')
 		for group in self.groups.values():
@@ -538,7 +536,7 @@ class Drumkit(SFZ):
 		"""
 		Generator which recusively yields every element contained in this Drumkit,
 		ordered by PercussionGroup -> PercussionInstrument -> Region -> Opcode.
-		Each iteration returns a tuple (_SFZElement, (int) depth)
+		Each iteration returns a tuple (Element, (int) depth)
 		"""
 		yield (self, depth)
 		depth += 1

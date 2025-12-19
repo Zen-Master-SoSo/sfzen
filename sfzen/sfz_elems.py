@@ -33,14 +33,14 @@ except ImportError:
 	from functools import lru_cache as cache
 from operator import and_, or_
 from midi_notes import NOTE_PITCHES
-from sfzen.sort import opcode_sorted
+from sfzen.sort import sorted_opcodes
 from sfzen.opcodes import OPCODES
 
 
 # ---------------------------
 # Elements
 
-class _SFZElement:
+class Element:
 	"""
 	An abstract class which provides parent/child hierarchical relationship.
 	This is the base class of all Headers and Opcodes.
@@ -79,7 +79,7 @@ class _SFZElement:
 		return type(self).__name__
 
 
-class Header(_SFZElement):
+class Header(Element):
 	"""
 	An abstract class which handles the functions common to all SFZ header types.
 	Each header type basically acts the same, except for checking what kind of
@@ -282,7 +282,7 @@ class Header(_SFZElement):
 		"""
 		Generator which recusively yields every element contained in this Header,
 		including opcodes and subheaders. Opcodes are yielded first, then subheaders.
-		Each iteration returns a tuple (_SFZElement, (int) depth)
+		Each iteration returns a tuple (Element, (int) depth)
 		"""
 		yield (self, depth)
 		depth += 1
@@ -331,7 +331,7 @@ class Header(_SFZElement):
 		"""
 		stream.write(str(self) + "\n")
 		if self._opcodes:
-			for op in opcode_sorted(self._opcodes.values()):
+			for op in sorted_opcodes(self._opcodes.values()):
 				op.write(stream)
 			stream.write("\n")
 		if self._subheaders:
@@ -339,7 +339,7 @@ class Header(_SFZElement):
 				sub.write(stream)
 
 
-class _Modifier(_SFZElement):
+class Modifier(Element):
 	pass
 
 
@@ -450,7 +450,7 @@ class Curve(Header):
 			stream.write('%s=%s\n' % vals)
 
 
-class Opcode(_SFZElement):
+class Opcode(Element):
 	"""
 	Represents an SFZ opcode. Created by Lark transformer when importing SFZ.
 	"""
@@ -532,7 +532,7 @@ class Opcode(_SFZElement):
 	@cached_property
 	def validator(self):
 		"""
-		Returns a class which extends _Validator
+		Returns a class which extends Validator
 		"""
 		return validator_for(self.name)
 
@@ -716,7 +716,7 @@ class Sample(Opcode):
 		self._value = value
 
 
-class Define(_Modifier):
+class Define(Modifier):
 	"""
 	Represents a Define Opcode. Created by Lark transformer when importing SFZ.
 	"""
@@ -727,7 +727,7 @@ class Define(_Modifier):
 		self.value = value
 
 
-class Include(_Modifier):
+class Include(Modifier):
 	"""
 	Represents an Include Opcode. Created by Lark transformer when importing SFZ.
 	"""
@@ -740,19 +740,19 @@ class Include(_Modifier):
 # ---------------------------
 # Validators
 
-class _Validator:
+class Validator:
 
 	def type_name(self):
 		return "any" if self.type is None else self.type.__name__
 
 
-class AnyValidator(_Validator):
+class AnyValidator(Validator):
 
 	def is_valid(self, *_):
 		return True
 
 
-class ChoiceValidator(_Validator):
+class ChoiceValidator(Validator):
 
 	@classmethod
 	def from_rule(cls, str_choices, type_):
@@ -770,7 +770,7 @@ class ChoiceValidator(_Validator):
 		return value in self.choices
 
 
-class RangeValidator(_Validator):
+class RangeValidator(Validator):
 
 	@classmethod
 	def from_rule(cls, rulestr, type_):
@@ -790,7 +790,7 @@ class RangeValidator(_Validator):
 		return self.lowval <= value <= self.highval
 
 
-class MinValidator(_Validator):
+class MinValidator(Validator):
 
 	@classmethod
 	def from_rule(cls, rulestr, type_):
@@ -812,7 +812,7 @@ class MinValidator(_Validator):
 @cache
 def validator_for(opcode_name):
 	"""
-	Returns a class which extends _Validator
+	Returns a class which extends Validator
 	"""
 	rule = validation_rule(opcode_name)
 	if rule is None:

@@ -24,12 +24,13 @@ Provides functions used for sorting opcodes in a preferred order.
 OPCODE_SORT_ORDER = [
 	'lokey',
 	'hikey',
-	'pitch_keycenter',
+	'key',
 	'lovel',
 	'hivel',
 	'lochan',
 	'hichan',
 	'sample',
+	'pitch_keycenter',
 	'loop_mode',
 	'loop_start',
 	'loop_end',
@@ -79,21 +80,21 @@ OPCODE_SORT_ORDER = [
 	'pitchlfo_freq'
 ]
 
-def opcode_sorted(opcodes):
+def sorted_opcodes(opcodes):
 	"""
 	Sort a list of Opcode objects according to preferred OPCODE_SORT_ORDER.
 	"""
 	return sorted(opcodes, key = lambda opcode: \
 		OPCODE_SORT_ORDER.index(opcode.name) if opcode.name in OPCODE_SORT_ORDER else 1000)
 
-def name_sorted(opcodes):
+def sorted_opcode_names(opcodes):
 	"""
 	Sort a list of strings (opcode names), according to preferred OPCODE_SORT_ORDER.
 	"""
 	return sorted(opcodes, key = lambda opcode: \
 		OPCODE_SORT_ORDER.index(opcode) if opcode in OPCODE_SORT_ORDER else 1000)
 
-def opstring_sorted(opstrings):
+def sorted_opstrings(opstrings):
 	def sort_val(opstring):
 		op = opstring.split('=', 1)[0]
 		return OPCODE_SORT_ORDER.index(op) if op in OPCODE_SORT_ORDER else 1000
