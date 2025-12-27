@@ -306,7 +306,7 @@ class Header(Element):
 		if self._subheaders:
 			common_opstrings = self.common_opstrings()
 			for tup in [ opstring.split('=', 1) for opstring in common_opstrings ]:
-				self.append_opcode(Opcode(tup[0], tup[1]))
+				self.append_opcode(Opcode(*tup))
 				for sub in self._subheaders:
 					del sub._opcodes[tup[0]]
 
@@ -321,7 +321,7 @@ class Header(Element):
 		return '<%s>' % type(self).__name__.lower()
 
 	def __repr__(self):
-		return '{0} ({1:d} opcodes)'.format(type(self).__name__, len(self._opcodes))
+		return f'{self.__class__.__name__} ({len(self._opcodes):d} opcodes)'
 
 	def write(self, stream):
 		"""

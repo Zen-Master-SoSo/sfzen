@@ -122,6 +122,36 @@ SAMPLE_UNIT_OPCODES = [
 	'offset_random'
 ]
 
+KEY_RANGE_DICT = {
+	'lokey'				: 0,
+	'hikey'				: 127
+}
+
+VEL_RANGE_DICT = {
+	'lovel'				: 0,
+	'hivel'				: 127
+}
+
+def _list(coll):
+	"""
+	Convert any basic collection type into a list.
+	"""
+	if isinstance(coll, list):
+		return coll
+	if isinstance(coll, dict):
+		return list(coll.values())
+	return list(coll)
+
+def opcode_dict(coll):
+	"""
+	Returns a dict {opcode_name:opcode_value} from any basic collection type.
+	Elements of the collection may be opstrings or Opcode objects.
+	"""
+	if len(coll) == 0:
+		return list()
+	coll = _list(coll)
+	return opcodes_to_dict(coll) if isinstance(coll[0], Opcode) else opstrings_to_dict(coll)
+
 def opcodes_to_dict(opcode_list: list):
 	"""
 	Converts a list of Opcode objects into a dict;
@@ -135,6 +165,27 @@ def opstrings_to_dict(opstring_list: list):
 	keys are opcode name, values are opcode values.
 	"""
 	return { k:v for k,v in [ opstring.split('=', 1) for opstring in opstring_list ] }
+
+def _range_str(rng_dict, opdict):
+	d = rng_dict.copy()
+	d.update(opdict)
+	l = list(d.values())
+	return f'{l[0]}-{l[1]}'
+
+def pitch_range_str(opcodes):
+	if opcodes:
+		opdict = opcode_dict(opcodes)
+		return str(opdict['key']) if 'key' in opdict else _range_str(KEY_RANGE_DICT, opdict)
+	return '0-127'
+
+def velocity_range_str(opcodes):
+	if opcodes:
+		opdict = opcode_dict(opcodes)
+		return _range_str(VEL_RANGE_DICT, opdict)
+	return '0-127'
+
+def range_description(opcodes):
+	return f' {pitch_range_str(opcodes)}, {velocity_range_str(opcodes)}'
 
 
 class Xformer(Transformer):
@@ -223,9 +274,9 @@ class Xformer(Transformer):
 					else:
 						logging.error('Invalid opcode inside velocity curve definition')
 			else:
-				opname = self.replace_defs(toks[0].value).lower()
 				self.current_header.append_opcode(Opcode(
-					opname, self.replace_defs(toks[1].value),
+					self.replace_defs(toks[0].value).lower(),
+					self.replace_defs(toks[1].value),
 					meta, self.sfz.basedir))
 		except Exception as e:
 			self.sfz.append_parse_error(e, meta)
@@ -490,7 +541,7 @@ class SFZ(Header):
 				common_opstrings = group.common_opstrings()
 				if any(len(region._opcodes) > len(common_opstrings) for region in regions):
 					for tup in [ opstring.split('=', 1) for opstring in common_opstrings ]:
-						group.append_opcode(Opcode(tup[0], tup[1]))
+						group.append_opcode(Opcode(*tup))
 						for region in regions:
 							del region._opcodes[tup[0]]
 					simplified_sfz.append_subheader(group)
@@ -508,7 +559,7 @@ class SFZ(Header):
 					for opstring in common_opstrings ]
 				opstring_tuples = [ tup for tup in opstring_tuples if tup[0] != 'sample' ]
 				for tup in opstring_tuples:
-					global_header.append_opcode(Opcode(tup[0], tup[1]))
+					global_header.append_opcode(Opcode(*tup))
 				simplified_sfz.remove_opcodes([ tup[0] for tup in opstring_tuples ])
 
 		if len(global_header._opcodes):
