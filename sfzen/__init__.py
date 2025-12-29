@@ -61,7 +61,7 @@ __all__ = [	'COMMENT_DIVIDER',
 			'midi_note_sort_key', 'sorted_opcode_names', 'sorted_opcodes', 'sorted_opstrings',
 			'opcodes_to_dict', 'opstrings_to_dict']
 
-__version__ = "1.8.0"
+__version__ = "1.8.1"
 
 COMMENT_DIVIDER = '// ' + '-' * 76 + "\n"
 
