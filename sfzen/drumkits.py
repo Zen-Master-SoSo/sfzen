@@ -20,7 +20,7 @@
 """
 Provides Drumkit SFZ wrapper.
 """
-from os.path import basename, dirname
+from os.path import dirname
 from copy import deepcopy
 from functools import reduce
 from operator import and_, or_

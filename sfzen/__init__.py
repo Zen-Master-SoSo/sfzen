@@ -27,8 +27,8 @@ from math import ceil
 from operator import or_
 from functools import reduce
 from collections import defaultdict
-from appdirs import user_cache_dir
 from shutil import rmtree
+from appdirs import user_cache_dir
 from lark import Lark, Transformer, v_args
 from lark.tree import Meta
 from log_soso import log_error
@@ -148,7 +148,7 @@ def opcode_dict(coll):
 	Elements of the collection may be opstrings or Opcode objects.
 	"""
 	if len(coll) == 0:
-		return list()
+		return []
 	coll = _list(coll)
 	return opcodes_to_dict(coll) if isinstance(coll[0], Opcode) else opstrings_to_dict(coll)
 
@@ -164,7 +164,7 @@ def opstrings_to_dict(opstring_list: list):
 	Converts a list of string representation (including name and value) into a dict;
 	keys are opcode name, values are opcode values.
 	"""
-	return { k:v for k,v in [ opstring.split('=', 1) for opstring in opstring_list ] }
+	return dict([ opstring.split('=', 1) for opstring in opstring_list ])
 
 def _range_str(rng_dict, opdict):
 	d = rng_dict.copy()
@@ -205,6 +205,7 @@ class Xformer(Transformer):
 	}
 
 	def __init__(self, sfz):
+		super().__init__()
 		self.sfz = sfz
 		self.current_header = self.sfz
 
@@ -213,7 +214,7 @@ class Xformer(Transformer):
 		"""
 		Transformer function which handles <header> tokens.
 		"""
-		meta, toks = self.wonky_lark_args(arg1, arg2)
+		_, toks = self.wonky_lark_args(arg1, arg2)
 		header = self.header_classes[toks[0].value]()
 		while not self.current_header.may_contain(header):
 			self.current_header = self.current_header.parent
@@ -254,7 +255,7 @@ class Xformer(Transformer):
 				except Exception as e:
 					log_error(e)
 			else:
-				raise ValueError('Include not found: %s' % path)
+				raise ValueError(f'Include not found: "{path}"')
 		except Exception as e:
 			self.sfz.append_parse_error(e, meta)
 
@@ -330,12 +331,11 @@ class SFZ(Header):
 		Passing "basedir" allows included SFZ parts to use the directory of their
 		parent when parsing sample paths.
 		"""
+		super().__init__(None)
 		self.filename = filename
 		self.defines = defines or {}
 		self.is_include = is_include
 		self._parent = None
-		self._subheaders = []
-		self._opcodes = {}
 		self.includes = []
 		self.parse_errors = []
 		if filename is None:
@@ -345,7 +345,8 @@ class SFZ(Header):
 			if SFZ._parser is None:
 				cache_file = join(user_cache_dir(), 'sfzen')
 				grammar = join(dirname(__file__), 'res', 'sfz.lark')
-				SFZ._parser = Lark.open(grammar, parser = 'lalr', propagate_positions = True, cache = cache_file)
+				SFZ._parser = Lark.open(grammar, parser = 'lalr',
+					propagate_positions = True, cache = cache_file)
 			with open(filename) as f:
 				tree = SFZ._parser.parse(f.read() + "\n")
 			xformer = Xformer(self)

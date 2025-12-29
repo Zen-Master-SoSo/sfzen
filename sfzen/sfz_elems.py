@@ -23,7 +23,7 @@ All of these classes are constructed from a lark parser tree Token.
 """
 import re, logging
 from os import unlink, symlink, link as hardlink, sep as path_separator
-from os.path import abspath, exists, islink, join, relpath, realpath
+from os.path import abspath, exists, join, relpath, realpath
 from shutil import move, copy2 as copy
 from copy import deepcopy
 from functools import cached_property, reduce
@@ -76,7 +76,7 @@ class Element:
 		self._parent = parent
 
 	def __repr__(self):
-		return type(self).__name__
+		return self.__class__.__name__
 
 
 class Header(Element):
@@ -318,7 +318,7 @@ class Header(Element):
 					if key not in opcode_list }
 
 	def __str__(self):
-		return '<%s>' % type(self).__name__.lower()
+		return f'<{self.__class__.__name__.lower()}>'
 
 	def __repr__(self):
 		return f'{self.__class__.__name__} ({len(self._opcodes):d} opcodes)'
@@ -340,7 +340,9 @@ class Header(Element):
 
 
 class Modifier(Element):
-	pass
+	"""
+	Abstract class which is inherited by Define & Include.
+	"""
 
 
 class Global(Header):
@@ -388,7 +390,7 @@ class Region(Header):
 			region.is_triggerd_by(lokey = 60, hikey = 60)
 		"""
 		if key is None and lokey is None and hikey is None and lovel is None and hivel is None:
-			raise Exception('Requires a key or velocity to test against')
+			raise RuntimeError('Requires a key or velocity to test against')
 		ops = self.inherited_opcodes()
 		if key is not None and 'key' in ops and ops['key'].value != key:
 			return False
@@ -438,7 +440,7 @@ class Curve(Header):
 	points = {}
 
 	def __str__(self):
-		return '<%s>curve_index=%s' % (type(self).__name__.lower(), self.curve_index)
+		return f'<curve>curve_index={self.curve_index}'
 
 	def write(self, stream):
 		"""
@@ -446,8 +448,8 @@ class Curve(Header):
 		"stream" may be any file-like object, including sys.stdout.
 		"""
 		stream.write(str(self) + "\n")
-		for vals in self.points.items():
-			stream.write('%s=%s\n' % vals)
+		for key, val in self.points.items():
+			stream.write(f'{key}={val}\n')
 
 
 class Opcode(Element):
@@ -458,10 +460,11 @@ class Opcode(Element):
 	def __new__(cls, name, value, meta = None, basedir = None):
 		return super().__new__(Sample) if name == 'sample' else super().__new__(Opcode)
 
-	def __init__(self, name, value, meta = None, *_):
+	def __init__(self, name, value, meta = None, _ = None):
 		super().__init__(meta)
 		self.name = name
 		self.value = value
+		self.basedir = None
 
 	def __deepcopy__(self, memo):
 		cls = self.__class__
@@ -500,6 +503,13 @@ class Opcode(Element):
 					raise err
 		else:
 			self._value = value
+
+	@property
+	def abspath(self):
+		"""
+		Not implemented in Opcode, but in derived class Sample.
+		"""
+		raise NotImplementedError()
 
 	@cached_property
 	def type(self):
@@ -741,18 +751,29 @@ class Include(Modifier):
 # Validators
 
 class Validator:
+	"""
+	Abstract class which is the base for the various validator classes.
+	"""
+
+	type = None
 
 	def type_name(self):
 		return "any" if self.type is None else self.type.__name__
 
 
 class AnyValidator(Validator):
+	"""
+	Validates an opcode when any value is valid.
+	"""
 
 	def is_valid(self, *_):
 		return True
 
 
 class ChoiceValidator(Validator):
+	"""
+	Validates an opcode when valid values are in a predefined list of choices.
+	"""
 
 	@classmethod
 	def from_rule(cls, str_choices, type_):
@@ -771,6 +792,9 @@ class ChoiceValidator(Validator):
 
 
 class RangeValidator(Validator):
+	"""
+	Validates an opcode when valid values are within a range.
+	"""
 
 	@classmethod
 	def from_rule(cls, rulestr, type_):
@@ -791,6 +815,9 @@ class RangeValidator(Validator):
 
 
 class MinValidator(Validator):
+	"""
+	Validates an opcode when valid values are from a set minimum to any upper value.
+	"""
 
 	@classmethod
 	def from_rule(cls, rulestr, type_):
@@ -819,7 +846,7 @@ def validator_for(opcode_name):
 		return AnyValidator()
 	match = re.match(r'^(Choice|Range|Min|Any)\(([^\)]*)\)', rule)
 	if match is None:
-		raise RuntimeError('Invalid validation rule: ' + rule)
+		raise RuntimeError(f'Invalid validation rule: "{rule}"')
 	type_ = data_type(opcode_name)
 	if match.group(1) == 'Choice':
 		return ChoiceValidator.from_rule(match.group(2), type_)
@@ -863,7 +890,7 @@ def data_type(opcode_name):
 		return int
 	if definition["value"]["type"] == 'string':
 		return str
-	raise Exception("unknown type: " + definition["value"]["type"])
+	raise TypeError("unknown type: " + definition["value"]["type"])
 
 @cache
 def modulates(opcode_name):
