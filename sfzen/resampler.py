@@ -70,8 +70,8 @@ class SampleResampler:
 
 	def __init__(self, sample, target_rate, target_mono, target_bitdepth):
 		self.sample = sample
-		self.basedir = sample.basedir
-		assert self.basedir is not None
+		self.default_path = sample.default_path
+		assert self.default_path is not None
 		self.target_rate = target_rate
 		self.target_mono = target_mono
 		self.target_bitdepth = target_bitdepth
@@ -112,7 +112,7 @@ class SampleResampler:
 					adjusted_value = round(float(opcode.value) * ratio)
 					if adjusted_value != opcode.value:
 						self.sample.parent._opcodes[opcode_name] = Opcode(
-							opcode_name, adjusted_value, None, self.basedir)
+							opcode_name, adjusted_value, None, self.default_path)
 						logging.debug('Adjusted %s', opcode)
 		# ------------------
 		# Do file conversion

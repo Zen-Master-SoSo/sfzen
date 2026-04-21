@@ -457,21 +457,21 @@ class Opcode(Element):
 	Represents an SFZ opcode. Created by Lark transformer when importing SFZ.
 	"""
 
-	def __new__(cls, name, value, meta = None, basedir = None):
+	def __new__(cls, name, value, meta = None, default_path = None):
 		return super().__new__(Sample) if name == 'sample' else super().__new__(Opcode)
 
 	def __init__(self, name, value, meta = None, _ = None):
 		super().__init__(meta)
 		self.name = name
 		self.value = value
-		self.basedir = None
+		self.default_path = None
 
 	def __deepcopy__(self, memo):
 		cls = self.__class__
 		result = cls.__new__(cls, self.name, self.value)
 		result.name = self.name
 		if cls is Sample:
-			result.basedir = self.basedir
+			result.default_path = self.default_path
 			result._value = self.abspath
 		else:
 			result._value = self._value
@@ -584,7 +584,7 @@ class Sample(Opcode):
 
 	RE_PATH_DIVIDER = '[\\\/]'
 
-	def __init__(self, name, value, meta = None, basedir = None):
+	def __init__(self, name, value, meta = None, default_path = None):
 		"""
 		When instantiating a Sample, the "name" is always "Sample"; the "value"
 		is the path to the sample as it appears in the SFZ. In Opcode.__init__(),
@@ -593,12 +593,14 @@ class Sample(Opcode):
 		The "meta" argument is passed to the constructor during parsing of an existing
 		SFZ file. You can safely ignore it when constructing an SFZ from scratch.
 
-		"basedir" would be the name of the directory containing the SFZ which owns this
-		Sample. This value is used for determing the relative path to a sample defined
-		with an absolute path.
+		"default_path" is the name of the directory where this Sample may be found. All
+		sample paths are determined relative to the default_path. This value may be set
+		using a "default_path" opcode in the SFZ (commonly beneath a <control> header).
+		If not explicitly set, the value defaults to the directory which contains the
+		parent SFZ.
 		"""
 		super().__init__(name, value, meta)
-		self.basedir = basedir
+		self.default_path = default_path
 
 	@property
 	def _path_parts(self):
@@ -614,7 +616,7 @@ class Sample(Opcode):
 		Returns (str) the absolute path to the sample
 		"""
 		path = path_separator + join(*self._path_parts)
-		return path if exists(path) else abspath(join(self.basedir, *self._path_parts))
+		return path if exists(path) else abspath(join(self.default_path, *self._path_parts))
 
 	@property
 	def relpath(self):

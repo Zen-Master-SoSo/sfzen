@@ -409,10 +409,10 @@ class Drumkit(SFZ):
 		self.groups = { group_id:PercussionGroup(group_id) for group_id in GROUP_PITCHES }
 		self.filename = filename
 		if self.filename is None:
-			self.basedir = None
+			self.default_path = None
 			self._subheaders = []
 		else:
-			self.basedir = dirname(self.filename)
+			self.default_path = dirname(self.filename)
 			sfz = SFZ(self.filename)
 			for pitch, group_id in PITCH_GROUPS.items():
 				regions = list(sfz.regions_for(lokey = pitch, hikey = pitch))

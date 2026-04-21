@@ -247,7 +247,7 @@ class Xformer(Transformer):
 			path = join(dirname(self.sfz.filename), include.filename)
 			if exists(path):
 				try:
-					subsfz = SFZ(path, defines = self.sfz.defines, basedir = self.sfz.basedir, is_include = True)
+					subsfz = SFZ(path, defines = self.sfz.defines, default_path = self.sfz.default_path, is_include = True)
 					for header in subsfz.subheaders:
 						while not self.current_header.may_contain(header):
 							self.current_header = self.current_header.parent
@@ -281,7 +281,7 @@ class Xformer(Transformer):
 				self.current_header.append_opcode(Opcode(
 					self.replace_defs(toks[0].value).lower(),
 					self.replace_defs(toks[1].value),
-					meta, self.sfz.basedir))
+					meta, self.sfz.default_path))
 		except Exception as e:
 			self.sfz.append_parse_error(e, meta)
 
@@ -324,14 +324,14 @@ class SFZ(Header):
 
 	_parser = None
 
-	def __init__(self, filename = None, *, defines = None, basedir = None, is_include = False):
+	def __init__(self, filename = None, *, defines = None, default_path = None, is_include = False):
 		"""
 		filename: (str) Path to an .sfz file.
 
 		Passing "defines" allows us to construct an SFZ which is an import, and use the
 		defined variables from the parent SFZ.
 
-		Passing "basedir" allows included SFZ parts to use the directory of their
+		Passing "default_path" allows included SFZ parts to use the directory of their
 		parent when parsing sample paths.
 		"""
 		super().__init__(None)
@@ -342,9 +342,9 @@ class SFZ(Header):
 		self.includes = []
 		self.parse_errors = []
 		if filename is None:
-			self.basedir = None
+			self.default_path = default_path
 		else:
-			self.basedir = dirname(self.filename) if basedir is None else basedir
+			self.default_path = dirname(self.filename) if default_path is None else default_path
 			if SFZ._parser is None:
 				cache_file = join(user_cache_dir(), 'sfzen')
 				grammar = join(dirname(__file__), 'res', 'sfz.lark')
@@ -355,6 +355,8 @@ class SFZ(Header):
 					tree = SFZ._parser.parse(f.read() + "\n")
 				xformer = Xformer(self)
 				xformer.transform(tree)
+			except OSError as e:
+				raise e
 			except Exception as e:
 				raise SFZDecodeError from e
 
@@ -488,7 +490,7 @@ class SFZ(Header):
 		"""
 
 		simplified_sfz = SFZ()
-		simplified_sfz.basedir = self.basedir
+		simplified_sfz.default_path = self.default_path
 		global_header = Global()
 
 		regions = [
@@ -573,10 +575,10 @@ class SFZ(Header):
 			simplified_sfz._subheaders.insert(0, global_header)
 			global_header.parent = simplified_sfz
 
-		# Give "Sample" opcodes a basedir for abspath function:
-		for elem,_ in simplified_sfz.walk():
+		# Assign all "Sample" opcodes a default_path:
+		for elem, _ in simplified_sfz.walk():
 			if isinstance(elem, Sample):
-				elem.basedir = self.basedir
+				elem.default_path = self.default_path
 
 		return simplified_sfz
 
