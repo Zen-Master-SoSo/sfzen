@@ -67,7 +67,7 @@ __all__ = [	'LOG_FORMAT',
 			'pitch_range_str', 'velocity_range_str', 'range_description',
 			'opcodes_to_opstrings', 'opcode_dict', 'opcodes_to_dict', 'opstrings_to_dict']
 
-__version__ = "1.9.1"
+__version__ = "2.0.0"
 
 
 # ---------------------------
