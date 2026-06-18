@@ -1,0 +1,17 @@
+// Bad tokens
+// Copyright 2006, Leon Dionne
+
+<group>							// assert-NoneType
+lokey=36						// assert-NoneType
+hikey=48						// assert-NoneType
+
+<region>						// assert-NoneType
+hivel=64						// assert-NoneType
+sample=samples/sample_1.wav		// assert-NoneType
+foo=bar							// assert-InvalidOpcodeError
+
+<badheader>						// assert-InvalidHeaderError
+lovel=64						// assert-NoneType
+sample=samples/sample_2.wav		// assert-NoneType
+bar=baz							// assert-InvalidOpcodeError
+

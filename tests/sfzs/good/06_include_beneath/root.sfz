@@ -1,0 +1,13 @@
+// SFZ with included region, samples beneath
+// Copyright 2006, Leon Dionne
+
+<group>
+ampeg_release=0.500
+
+#include "includes/include.sfz"
+
+<region>
+sample=samples/sample_1.wav
+lokey=g3
+hikey=g3
+pitch_keycenter=g3

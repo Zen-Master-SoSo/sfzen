@@ -1,0 +1,29 @@
+// Bad values
+// Copyright 2006, Leon Dionne
+
+<group>
+lokey=C2					// assert-NoneType
+hikey=C3					// assert-NoneType
+
+<region>
+loop_mode=no_loop			// assert-NoneType
+hivel=64.4					// assert-DataTypeError
+sample=samples/sample_1.wav	// assert-NoneType
+
+<region>
+lovel=64					// assert-NoneType
+hivel=80					// assert-NoneType
+loop_mode=loop_forever		// assert-ChoiceError
+sample=samples/sample_2.wav	// assert-NoneType
+bend_smooth=-1				// assert-MinError
+
+<region>
+lovel=80					// assert-NoneType
+hivel=128					// assert-MaxError
+sample=samples/sample_3.wav	// assert-NoneType
+transpose=-1				// assert-NoneType
+
+<group>
+lokey=49					// assert-NoneType
+hikey=63.3					// assert-DataTypeError
+

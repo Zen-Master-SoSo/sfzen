@@ -18,9 +18,10 @@
 #  MA 02110-1301, USA.
 #
 """
-Cleanup opcodes that LiquidSFZ does not understand.
+Cleanup opcodes that LiquidSFZ does not support.
 """
-from sfzen.sfz_elems import Header, normal_opcode
+from . import filter_opcodes
+
 
 SUPPORTED_OPCODES = [
 	'amp_random',
@@ -229,11 +230,7 @@ SUPPORTED_OPCODES = [
 ]
 
 def clean(sfz):
-	for elem, _ in sfz.walk():
-		if isinstance(elem, Header):
-			elem._opcodes = { key:opcode \
-				for key, opcode in elem._opcodes.items() \
-				if normal_opcode(key) in SUPPORTED_OPCODES }
+	filter_opcodes(sfz, SUPPORTED_OPCODES)
 
 
 #  end sfzen/cleaners/liquidsfz.py

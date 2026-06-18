@@ -1,0 +1,51 @@
+// SFZ with defines
+// Copyright 2006, Leon Dionne
+
+#define $ppp 16
+#define $pp 33
+#define $p 49
+#define $mp 64
+#define $mf 80
+#define $f 96
+#define $ff 112
+
+<group>
+// Low notes
+lokey=36
+hikey=48
+
+<region>
+// Quiet notes
+hivel=$mp
+sample=samples/quiet_part_low.wav
+
+<region>
+// Mid-velocity notes
+lovel=$mp hivel=$mf
+sample=samples/mid_part_low.wav
+
+<region>
+// Loud notes
+lovel=$mf
+sample=samples/loud_part_low.wav
+
+<group>
+// High notes
+lokey=49
+hikey=63
+
+<region>
+// Quiet notes
+hivel=$mp
+sample=samples/quiet_part_high.wav
+
+<region>
+// Mid-velocity notes
+lovel=$mp hivel=$mf
+sample=samples/mid_part_high.wav
+
+<region>
+// Loud notes
+lovel=$mf	// hivel is implied
+sample=samples/loud_part_high.wav
+

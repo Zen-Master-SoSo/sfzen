@@ -1,0 +1,8 @@
+// Defines MuseScore3 velocities:
+#define $ppp 16	// MuseScore "ppp" dynamic
+#define $pp 33	// MuseScore "pp" dynamic
+#define $p 49	// MuseScore "p" dynamic
+#define $mp 64	// MuseScore "mp" dynamic
+#define $mf 80	// MuseScore "mf" dynamic
+#define $f 96	// MuseScore "f" dynamic
+#define $ff 112	// MuseScore "ff" dynamic

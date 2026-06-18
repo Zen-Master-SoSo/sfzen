@@ -18,17 +18,23 @@
 #  MA 02110-1301, USA.
 #
 """
-Provides Drumkit SFZ wrapper.
+Provides classes which are used to manipulate SFZ files in a structure
+correlating with MIDI drum categories and naming conventions.
+
+TODO: Cleanup and update for version 1.0.0
 """
+from os import linesep
 from os.path import dirname
 from copy import deepcopy
 from functools import reduce
 from operator import and_, or_
 from midi_notes import Note, MIDI_DRUM_IDS, MIDI_DRUM_PITCHES, MIDI_DRUM_NAMES
-from sfzen import COMMENT_DIVIDER, KEY_OPCODES, sorted_opstrings, SFZ, Region as SFZRegion
+from sfzen import KEY_DEFINING_OPCODES, sorted_opstrings, SFZ, Region as SFZRegion
 
 # -----------------------------------------------------------------
 # constants
+
+COMMENT_DIVIDER = '// ' + '-' * 76 + linesep
 
 GROUP_PITCHES = {
 	'bass_drums'	: [35, 36],
@@ -135,9 +141,10 @@ class Region(SFZRegion):
 
 	"""
 
+	# pylint: disable-next = super-init-not-called
 	def __init__(self, source_region, source_filename):
 		self._parent = None
-		self._subheaders = []
+		self.elements = []
 		self._opcodes = source_region.inherited_opcodes()
 		self.filename = source_filename
 		self.line = source_region.line
@@ -153,10 +160,10 @@ class Region(SFZRegion):
 		of all the opcodes NOT to define in this region, as they are common opcodes
 		defined in a parent header.
 		"""
-		stream.write("<region>\n")
+		stream.write(f"<region>{linesep}")
 		for opstring in sorted_opstrings(self.opstrings() - region_exclude):
-			stream.write(opstring + '\n')
-		stream.write('\n')
+			stream.write(opstring + linesep)
+		stream.write(linesep)
 
 
 class PercussionInstrument:
@@ -202,8 +209,8 @@ class PercussionInstrument:
 		value) of all the opcodes NOT to define, as they are common opcodes defined in
 		a parent header.
 		"""
-		stream.write(f'// "{self.name}" - key {self.note.pitch} / {self.note}\n')
-		stream.write(f'// Source: {self.source_filename}\n')
+		stream.write(f'// "{self.name}" - key {self.note.pitch} / {self.note}{linesep}')
+		stream.write(f'// Source: {self.source_filename}{linesep}')
 		if len(self.regions) > 1:
 			# Multiple regions; look for common opstrings:
 			group_opstrings = self.common_opstrings() - global_opstrings
@@ -212,7 +219,7 @@ class PercussionInstrument:
 			region = self.regions[0]
 			group_opstrings = set(
 				str(region.opcodes[key]) \
-				for key in KEY_OPCODES \
+				for key in KEY_DEFINING_OPCODES \
 				if key in region.opcodes
 			)
 		region_exclude = global_opstrings | group_opstrings
@@ -220,37 +227,37 @@ class PercussionInstrument:
 		keyvals = [
 			opstring.split('=', 1)[1] \
 			for opstring in group_opstrings \
-			if opstring.split('=', 1)[0] in KEY_OPCODES
+			if opstring.split('=', 1)[0] in KEY_DEFINING_OPCODES
 		]
 		if len(keyvals) == 3 and len(set(keyvals)) == 1:
 			group_opstrings = [
 				opstring \
 				for opstring in group_opstrings \
-				if opstring.split('=', 1)[0] not in KEY_OPCODES
+				if opstring.split('=', 1)[0] not in KEY_DEFINING_OPCODES
 			]
 			group_opstrings.append(f'key={keyvals[0]}')
-		stream.write('<group>\n')
+		stream.write(f'<group>{linesep}')
 		for opstring in sorted_opstrings(group_opstrings):
-			stream.write(opstring + '\n')
-		stream.write('\n')
+			stream.write(opstring + linesep)
+		stream.write(linesep)
 		for region in self.regions:
 			region.write(stream, region_exclude)
-		stream.write('\n')
+		stream.write(linesep)
 
 	def opstrings_used(self):
 		"""
 		Returns a set of all the string representation (including name and value) of
 		all the opcodes used in this Instrument.
 		"""
-		return reduce(or_, [region.opstrings() \
-			for region in self.regions], set())
+		return reduce(or_, [ region.opstrings() \
+			for region in self.regions ], set())
 
 	def common_opstrings(self):
 		"""
 		Returns a set of all the string representation (including name and value) of
 		all the identical opcodes used in every region in this Instrument.
 		"""
-		opstrings = [region.opstrings() for region in self.regions]
+		opstrings = [ region.opstrings() for region in self.regions ]
 		return reduce(and_, opstrings) if opstrings else set()
 
 	def samples_used(self):
@@ -327,7 +334,7 @@ class PercussionGroup:
 		of all the opcodes NOT to define in this region, as they are common opcodes
 		defined in a parent header.
 		"""
-		stream.write(f'{COMMENT_DIVIDER}// "{self.name}"\n{COMMENT_DIVIDER}\n')
+		stream.write(f'{COMMENT_DIVIDER}// "{self.name}"{linesep}{COMMENT_DIVIDER}{linesep}')
 		for inst in self.instruments.values():
 			if not inst.empty():
 				inst.write(stream, exclude_opstrings)
@@ -337,16 +344,16 @@ class PercussionGroup:
 		Returns a set of all the string representation (including name and value) of
 		all the opcodes used by all Instruments in this Group.
 		"""
-		return reduce(or_, [instrument.opstrings_used() \
-			for instrument in self.instruments.values()], set())
+		return reduce(or_, [ instrument.opstrings_used() \
+			for instrument in self.instruments.values() ], set())
 
 	def common_opstrings(self):
 		"""
 		Returns a set of all the string representation (including name and value) of
 		all the identical opcodes used in every region in this Group.
 		"""
-		opstrings = [instrument.opstrings_used() \
-			for instrument in self.instruments.values()]
+		opstrings = [ instrument.opstrings_used() \
+			for instrument in self.instruments.values() ]
 		return reduce(and_, opstrings) if opstrings else set()
 
 	def samples_used(self):
@@ -402,15 +409,15 @@ class Drumkit(SFZ):
 	<region> headers (No <group>, <global>, etc.)
 	"""
 
+	# pylint: disable-next = super-init-not-called
 	def __init__(self, filename = None):
-		#super().__init__(filename)
 		self._parent = None
 		self._opcodes = {}
 		self.groups = { group_id:PercussionGroup(group_id) for group_id in GROUP_PITCHES }
 		self.filename = filename
 		if self.filename is None:
 			self.default_path = None
-			self._subheaders = []
+			self.elements = []
 		else:
 			self.default_path = dirname(self.filename)
 			sfz = SFZ(self.filename)
@@ -421,21 +428,21 @@ class Drumkit(SFZ):
 			self.adopt_regions()
 
 	def adopt_regions(self):
-		self._subheaders = list(self.regions())
-		for subheader in self._subheaders:
-			subheader.parent = self
+		self.elements = list(self.regions())
+		for element in self.elements:
+			element.parent = self
 
 	def write(self, stream):
 		"""
 		Write in SFZ format to any file-like object, including sys.stdout.
 		"""
-		stream.write(f'//\n// {self.name}\n//\n')
+		stream.write(f'//{linesep}// {self.name}{linesep}//{linesep}')
 		global_opstrings = self.common_opstrings()
 		if global_opstrings:
-			stream.write('\n<global>\n')
+			stream.write(f'{linesep}<global>{linesep}')
 			for opstring in sorted_opstrings(global_opstrings):
-				stream.write(opstring + '\n')
-			stream.write('\n')
+				stream.write(opstring + linesep)
+			stream.write(linesep)
 		for group in self.groups.values():
 			if not group.empty():
 				group.write(stream, global_opstrings)
@@ -470,7 +477,7 @@ class Drumkit(SFZ):
 		Returns a set of all the string representation (including name and value) of
 		all the identical opcodes used in every region in this Drumkit.
 		"""
-		sets = [group.common_opstrings() for group in self.groups.values()]
+		sets = [ group.common_opstrings() for group in self.groups.values() ]
 		# Filter empty:
 		sets = [ set_ for set_ in sets if len(set_) ]
 		return reduce(and_, sets) if sets else set()
@@ -493,8 +500,8 @@ class Drumkit(SFZ):
 		"""
 		Returns a set of all raw values of all "sample" opcodes used in this Drumkit.
 		"""
-		return reduce(or_, [group.samples_used() \
-			for group in self.groups.values()], set())
+		return reduce(or_, [ group.samples_used() \
+			for group in self.groups.values() ], set())
 
 	def instruments(self):
 		"""

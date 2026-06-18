@@ -1,0 +1,42 @@
+// SFZ with spaces in sample names
+// Copyright 2006, Leon Dionne
+
+<group>
+// Low notes
+lokey=36
+hikey=48
+
+<region>
+// Quiet notes
+hivel=64	// Only respond to velocity at or below mezzopiano
+sample=samples/sample 1.wav
+
+<region>
+// Mid-velocity notes
+lovel=64 hivel=80
+sample=samples/sample 2.wav
+
+<region>
+// Loud notes
+lovel=80
+sample=samples/sample 3.wav
+
+<group>
+// Midrange notes
+lokey=49 hikey=63
+
+<region>
+// Quiet notes
+hivel=64
+sample=samples/sample 1.wav
+
+<region>
+// Mid-velocity notes
+lovel=64 hivel=80	// Respond to velocities from mezzopiano to mezzoforte
+sample=samples/sample 2.wav
+
+<region>
+// Loud notes
+lovel=80	// hivel is implied
+sample=samples/sample 3.wav
+

@@ -1,3 +1,5 @@
+# pylint: disable = duplicate-code
+#
 #  sfzen/scripts/sfz_opcode_usage.py
 #
 #  Copyright 2025 Leon Dionne <ldionne@dridesign.sh.cn>
@@ -18,57 +20,53 @@
 #  MA 02110-1301, USA.
 #
 """
-Utility which lists all opcodes declared in one or many .sfz files
+Lists all of the opcodes used in one or many .sfz files
 """
-import logging, argparse
-from os.path import isdir, isfile, join
-from glob import glob
-from lark.exceptions import LarkError
-from progress.bar import IncrementalBar
-from sfzen import SFZ, sorted_opcode_names
+import sys, logging, argparse
+from os import linesep
+from progress.bar import PixelBar
+from sfzen import LOG_FORMAT, SFZ, sorted_opcode_names
+from . import given_paths
 
 
 def main():
 	"""
-	Entry point, defined so as to make it easy to reference from bin script.
+	Entry point for importing script from elsewhere.
 	"""
 	parser = argparse.ArgumentParser()
-	parser.epilog = """
-	List all the opcodes used by the given SFZ[s].
-	"""
 	parser.add_argument('Filename', type = str, nargs = '+',
-		help = 'File or directory to inspect.')
-	parser.add_argument("--recurse", "-r", action = "store_true",
-		help = "Recurse into subdirectories.")
-	parser.add_argument("--verbose", "-v", action = "store_true",
-		help = "Show more detailed debug information.")
+		help = 'SFZ file name, or directory (with "--recurse").')
+	parser.add_argument('--recurse', '-r', action = 'store_true',
+		help = 'Recurse into subdirectories.')
+	parser.add_argument('--verbose', '-v', action = 'store_true',
+		help = 'Show more detailed debug information.')
+	parser.epilog = __doc__
 	options = parser.parse_args()
 	logging.basicConfig(
 		level = logging.DEBUG if options.verbose else logging.ERROR,
-		format = "[%(filename)24s:%(lineno)3d] %(message)s"
+		format = LOG_FORMAT
 	)
 
-	for path in options.Filename:
-		if isdir(path):
-			file_list = glob(join(path, '*.sfz'))
-			if options.recurse:
-				file_list.extend(glob(join(path, '**', '*.sfz')))
-		elif isfile(path):
-			file_list = [path]
+	if path_list := given_paths(options):
+		try:
+			do_operations(path_list)
+		except KeyboardInterrupt:
+			print()
+			return 3
+	return 0
+
+
+def do_operations(path_list):
 	opcodes = set()
-	with IncrementalBar('Reading .sfz', max = len(file_list)) as progress_bar:
-		for filename in file_list:
-			try:
-				opcodes |= SFZ(filename).opcodes_used()
-			except LarkError:
-				print()
-				print(f'Parse error in "{filename}"')
+	with PixelBar('Reading .sfz', max = len(path_list)) as progress_bar:
+		for path in path_list:
+			opcodes |= SFZ(path).opcodes_used()
 			progress_bar.next()
-	print("\n".join(sorted_opcode_names(opcodes)))
+	print(linesep.join(sorted_opcode_names(opcodes)))
 
 
-if __name__ == "__main__":
-	main()
+if __name__ == '__main__':
+	sys.exit(main() or 0)
 
 
 #  end sfzen/scripts/sfz_opcode_usage.py

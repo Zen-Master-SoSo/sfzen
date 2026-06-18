@@ -1,0 +1,33 @@
+// SFZ for reductions checking
+// Copyright 2006, Leon Dionne
+
+<global>
+ampeg_attack=0.1	// assert-inherited
+ampeg_release=1.0	// assert-inherited
+
+<region>
+sample=samples/sample_1.wav	// assert-comment-copied
+lokey=48			// assert-promoted-to-key
+hikey=48			// assert-promoted-to-key
+pitch_keycenter=48	// assert-promoted-to-key
+lovel=1				// assert-removed-default
+hivel=64			// assert-remains
+
+<region>
+sample=samples/sample_2.wav	// assert-comment-copied
+lokey=48			// assert-promoted-to-key
+hikey=48			// assert-promoted-to-key
+pitch_keycenter=48	// assert-promoted-to-key
+lovel=64			// assert-remains
+hivel=80			// assert-remains
+transpose=0			// assert-removed-default
+
+<region>
+sample=samples/sample_3.wav	// assert-comment-copied
+lokey=48			// assert-promoted-to-key
+hikey=48			// assert-promoted-to-key
+pitch_keycenter=48	// assert-promoted-to-key
+lovel=80			// assert-remains
+hivel=127			// assert-removed-default
+tune=0				// assert-removed-default
+

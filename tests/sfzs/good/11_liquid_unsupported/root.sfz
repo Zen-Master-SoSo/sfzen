@@ -1,0 +1,45 @@
+// SFZ with elements liquidsfz does not support
+// Copyright 2006, Leon Dionne
+//
+// Unsupported:
+// ------------
+// lochan
+// hichan
+// pitch_veltrack
+// fil_type
+// effect1
+// effect2
+// pitcheg_delay
+// pitcheg_attack
+// pitcheg_decay
+// pitcheg_depth
+// pitcheg_sustain
+// pitcheg_release
+// pitcheg_hold
+// ampeg_dynamic
+// end
+// group_label
+
+<global>
+// assert-removed lochan
+// assert-removed hichan
+lochan=10
+hichan=10
+
+<group>
+// assert-removed effect1
+lokey=36
+hikey=48
+effect1=3
+
+<region>
+// assert-removed pitcheg_attack
+sample=samples/sample_1.wav
+pitcheg_attack=0.65
+
+<region>
+// assert-removed pitcheg_decay
+lovel=64 hivel=80
+sample=samples/sample_2.wav
+pitcheg_decay=1.05
+

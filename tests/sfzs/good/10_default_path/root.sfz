@@ -1,0 +1,44 @@
+// SFZ for default path checks
+// Copyright 2006, Leon Dionne
+
+default_path=samples
+
+<group>
+// Low notes
+lokey=36
+hikey=48
+
+<region>
+// Quiet notes
+hivel=64	// Only respond to velocity at or below mezzopiano
+sample=sample_1.wav
+
+<region>
+// Mid-velocity notes
+lovel=64 hivel=80
+sample=sample_2.wav
+
+<region>
+// Loud notes
+lovel=80
+sample=sample_3.wav
+
+<group>
+// Midrange notes
+lokey=49 hikey=63
+
+<region>
+// Quiet notes
+hivel=64
+sample=sample_1.wav
+
+<region>
+// Mid-velocity notes
+lovel=64 hivel=80	// Respond to velocities from mezzopiano to mezzoforte
+sample=sample_2.wav
+
+<region>
+// Loud notes
+lovel=80	// hivel is implied
+sample=sample_3.wav
+

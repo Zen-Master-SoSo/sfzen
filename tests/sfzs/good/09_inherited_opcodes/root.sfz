@@ -1,0 +1,74 @@
+// SFZ for inheritance checking
+// Copyright 2006, Leon Dionne
+<global>
+// assert-opcode ampeg_attack=0.2
+// assert-inherited_opcode_count 22
+ampeg_attack=0.2
+
+<group>
+// assert-iopcode ampeg_attack=0.2
+// assert-opcode hikey=48
+// assert-inherited_opcode_count 10
+lokey=36
+hikey=48
+
+<region>
+// assert-opcode ampeg_attack=0.7
+// assert-iopcode ampeg_attack=0.7
+// assert-len-inherited_opcodes 5
+// assert-inherited_opcodes default_path=samples
+// assert-inherited_opcodes lokey=36
+// assert-inherited_opcodes hikey=48
+// assert-inherited_opcodes hivel=64
+// assert-inherited_opcodes sample=sample_1.wav
+// assert-inherited_opcode_count 3
+ampeg_attack=0.7
+hivel=64
+sample=samples/sample_1.wav
+
+<region>
+// assert-iopcode ampeg_attack=0.2
+// assert-len-inherited_opcodes 6
+// assert-inherited_opcodes ampeg_attack=0.2,
+// assert-inherited_opcodes lokey=36,
+// assert-inherited_opcodes hikey=48,
+// assert-inherited_opcodes lovel=64,
+// assert-inherited_opcodes hivel=80,
+// assert-inherited_opcodes sample=sample_2.wav
+// assert-inherited_opcode_count 3
+lovel=64 hivel=80
+sample=samples/sample_2.wav
+
+<region>
+// assert-iopcode ampeg_attack=0.2
+// assert-inherited_opcode_count 2
+lovel=80
+sample=samples/sample_3.wav
+
+<group>
+// assert-opcode ampeg_attack=0.5
+// assert-iopcode ampeg_attack=0.5
+// assert-inherited_opcode_count 11
+ampeg_attack=0.5
+lokey=49 hikey=63
+
+<region>
+// assert-opcode ampeg_attack=0.7
+// assert-iopcode ampeg_attack=0.7
+// assert-inherited_opcode_count 3
+ampeg_attack=0.7
+hivel=64
+sample=samples/sample_1.wav
+
+<region>
+// assert-iopcode ampeg_attack=0.5
+// assert-inherited_opcode_count 3
+lovel=64 hivel=80
+sample=samples/sample_2.wav
+
+<region>
+// assert-iopcode ampeg_attack=0.5
+// assert-inherited_opcode_count 2
+lovel=80
+sample=samples/sample_3.wav
+
