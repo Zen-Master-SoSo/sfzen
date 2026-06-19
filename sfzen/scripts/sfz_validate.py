@@ -1,4 +1,4 @@
-# pylint: disable = duplicate-code
+#  pylint: disable = duplicate-code
 #
 #  sfzen/scripts/sfz_validate.py
 #
@@ -46,11 +46,16 @@ def main():
 		If given once, the total count of each type of error encountered is printed.
 		If given twice, the count of each unique instance of each error is printed.
 		""")
+	parser.add_argument('--verbose', '-v', action = 'store_true',
+		help = 'Show more detailed debug information.')
 	parser.add_argument('--recurse', '-r', action = 'store_true',
 		help = 'Recurse into subdirectories.')
 	parser.epilog = __doc__
 	options = parser.parse_args()
-	logging.basicConfig(level = logging.ERROR, format = LOG_FORMAT)
+	logging.basicConfig(
+		level = logging.DEBUG if options.verbose else logging.ERROR,
+		format = LOG_FORMAT
+	)
 
 	if path_list := given_paths(options):
 		try:

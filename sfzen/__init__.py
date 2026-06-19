@@ -662,7 +662,7 @@ class ExternalFile:
 			return None
 		dirpath = self.sfz.path.parent	# pylint: disable = no-member
 		if self.__default_path:
-			dirpath = dirpath.joinpath(self.__default_path)
+			dirpath = dirpath / self.__default_path
 		return dirpath.joinpath(self.__path).resolve()
 
 	def exists(self):

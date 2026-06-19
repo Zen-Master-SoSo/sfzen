@@ -35,11 +35,11 @@ def for_every_exported_sample(good_sfz_paths, tmp_path, samples_mode, func):
 		if export_dir.is_dir():
 			rmtree(export_dir)
 		export_filename = export_dir / 'root.sfz'
-		src_abspaths = [ str(sample.abspath) for sample in sfz.samples() ]
+		src_filenames = [ str(sample.abspath) for sample in sfz.samples() ]
 		sfz.save_as(export_filename, samples_mode = samples_mode)
 		export = SFZ(export_filename)
-		for src_path, dest_sample in zip(src_abspaths, export.samples()):
-			func(src_path, dest_sample)
+		for src_filename, dest_sample in zip(src_filenames, export.samples()):
+			func(src_filename, dest_sample)
 
 def for_every_exported_sample_simplified(good_sfz_paths, tmp_path, samples_mode, func):
 	export_dir = tmp_path / 'exported'
@@ -48,11 +48,11 @@ def for_every_exported_sample_simplified(good_sfz_paths, tmp_path, samples_mode,
 		if export_dir.is_dir():
 			rmtree(export_dir)
 		export_filename = export_dir / 'root.sfz'
-		src_abspaths = [ str(sample.abspath) for sample in sfz.samples() ]
+		src_filenames = [ str(sample.abspath) for sample in sfz.samples() ]
 		sfz.save_as(export_filename, samples_mode = samples_mode)
 		export = SFZ(export_filename)
-		for src_path, dest_sample in zip(src_abspaths, export.samples()):
-			func(src_path, dest_sample)
+		for src_filename, dest_sample in zip(src_filenames, export.samples()):
+			func(src_filename, dest_sample)
 
 def sample_contents_path(sample):
 	return TEST_DIR_PATH.joinpath(sample.abspath.read_text().rstrip())
@@ -78,79 +78,91 @@ def test_merge_includes(good_sfz_paths):
 	]:
 		sfz = SFZ(specific_sfz_path(good_sfz_paths, title))
 		element_count = inherited_element_count(sfz)
-		src_abspaths = [ str(sample.abspath) for sample in sfz.samples() ]
+		src_filenames = [ str(sample.abspath) for sample in sfz.samples() ]
 		sfz.merge_includes()
 		assert element_count > inherited_element_count(sfz)
-		for src_path, dest_sample in zip(src_abspaths, sfz.samples()):
-			assert src_path == str(dest_sample.abspath)
+		for src_filename, dest_sample in zip(src_filenames, sfz.samples()):
+			assert src_filename == str(dest_sample.abspath)
 
 def test_samples_abspath(good_sfz_paths, tmp_path):
-	def _test(src_path, dest_sample):
-		assert src_path == str(dest_sample.abspath)
-		assert src_path == str(dest_sample.path)
-		assert src_path == dest_sample.value
-		assert src_path == dest_sample.given_value
+	def _test(src_filename, dest_sample):
+		assert src_filename == str(dest_sample.abspath)
+		assert src_filename == str(dest_sample.path)
+		assert src_filename == dest_sample.value
+		assert src_filename == dest_sample.given_value
 	for_every_exported_sample(good_sfz_paths, tmp_path, SAMPLES_ABSPATH, _test)
 
 def test_samples_relpath(good_sfz_paths, tmp_path):
-	def _test(src_path, dest_sample):
-		assert src_path == str(dest_sample.abspath)
+	def _test(src_filename, dest_sample):
+		assert src_filename == str(dest_sample.abspath)
 		assert dest_sample.value[:2] == '..'
 		assert str(dest_sample.path)[:2] == '..'
 	for_every_exported_sample(good_sfz_paths, tmp_path, SAMPLES_RELPATH, _test)
 
 def test_samples_copy(good_sfz_paths, tmp_path):
-	def _test(src_path, dest_sample):
+	def _test(src_filename, dest_sample):
 		if not dest_sample.abspath.exists():
 			logging.debug('sfz.abspath: %s', dest_sample.sfz.abspath)
 			logging.debug('dest_sample.abspath: %s', dest_sample.abspath)
 		assert dest_sample.exists()
-		assert src_path == str(sample_contents_path(dest_sample))
+		assert src_filename == str(sample_contents_path(dest_sample))
 	for_every_exported_sample(good_sfz_paths, tmp_path, SAMPLES_COPY, _test)
 
 def test_samples_symlink(good_sfz_paths, tmp_path):
-	def _test(src_path, dest_sample):
-		assert src_path == str(sample_contents_path(dest_sample))
+	def _test(src_filename, dest_sample):
+		assert src_filename == str(sample_contents_path(dest_sample))
 	for_every_exported_sample(good_sfz_paths, tmp_path, SAMPLES_SYMLINK, _test)
 
 def test_samples_hardlink(good_sfz_paths, tmp_path):
-	def _test(src_path, dest_sample):
-		assert src_path == str(sample_contents_path(dest_sample))
+	def _test(src_filename, dest_sample):
+		assert src_filename != str(dest_sample.abspath)
+		assert src_filename == str(sample_contents_path(dest_sample))
+		src_stat = Path(src_filename).stat()
+		dest_stat = dest_sample.abspath.stat()
+		assert src_stat.st_nlink > 1
+		assert dest_stat.st_nlink > 1
+		assert src_stat.st_ino == dest_stat.st_ino
 	for_every_exported_sample(good_sfz_paths, tmp_path, SAMPLES_HARDLINK, _test)
 
 
 def test_samples_abspath_simplified(good_sfz_paths, tmp_path):
-	def _test(src_path, dest_sample):
-		assert src_path == str(dest_sample.abspath)
-		assert src_path == str(dest_sample.path)
-		assert src_path == dest_sample.value
-		assert src_path == dest_sample.given_value
+	def _test(src_filename, dest_sample):
+		assert src_filename == str(dest_sample.abspath)
+		assert src_filename == str(dest_sample.path)
+		assert src_filename == dest_sample.value
+		assert src_filename == dest_sample.given_value
 	for_every_exported_sample_simplified(good_sfz_paths, tmp_path, SAMPLES_ABSPATH, _test)
 
 def test_samples_relpath_simplified(good_sfz_paths, tmp_path):
-	def _test(src_path, dest_sample):
-		assert src_path == str(dest_sample.abspath)
+	def _test(src_filename, dest_sample):
+		assert src_filename == str(dest_sample.abspath)
 		assert dest_sample.value[:2] == '..'
 		assert str(dest_sample.path)[:2] == '..'
 	for_every_exported_sample_simplified(good_sfz_paths, tmp_path, SAMPLES_RELPATH, _test)
 
 def test_samples_copy_simplified(good_sfz_paths, tmp_path):
-	def _test(src_path, dest_sample):
+	def _test(src_filename, dest_sample):
 		if not dest_sample.abspath.exists():
 			logging.debug('sfz.abspath: %s', dest_sample.sfz.abspath)
 			logging.debug('dest_sample.abspath: %s', dest_sample.abspath)
 		assert dest_sample.exists()
-		assert src_path == str(sample_contents_path(dest_sample))
+		assert src_filename == str(sample_contents_path(dest_sample))
+		assert src_filename
 	for_every_exported_sample_simplified(good_sfz_paths, tmp_path, SAMPLES_COPY, _test)
 
 def test_samples_symlink_simplified(good_sfz_paths, tmp_path):
-	def _test(src_path, dest_sample):
-		assert src_path == str(sample_contents_path(dest_sample))
+	def _test(src_filename, dest_sample):
+		assert src_filename == str(sample_contents_path(dest_sample))
 	for_every_exported_sample_simplified(good_sfz_paths, tmp_path, SAMPLES_SYMLINK, _test)
 
 def test_samples_hardlink_simplified(good_sfz_paths, tmp_path):
-	def _test(src_path, dest_sample):
-		assert src_path == str(sample_contents_path(dest_sample))
+	def _test(src_filename, dest_sample):
+		assert src_filename == str(sample_contents_path(dest_sample))
+		src_stat = Path(src_filename).stat()
+		dest_stat = dest_sample.abspath.stat()
+		assert src_stat.st_nlink > 1
+		assert dest_stat.st_nlink > 1
+		assert src_stat.st_ino == dest_stat.st_ino
 	for_every_exported_sample_simplified(good_sfz_paths, tmp_path, SAMPLES_HARDLINK, _test)
 
 

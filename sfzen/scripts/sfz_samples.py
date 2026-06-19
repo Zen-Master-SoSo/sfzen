@@ -1,4 +1,4 @@
-# pylint: disable = duplicate-code
+#  pylint: disable = duplicate-code
 #
 #  sfzen/scripts/sfz_liquid_safe.py
 #

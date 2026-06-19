@@ -1,4 +1,4 @@
-# pylint: disable = duplicate-code
+#  pylint: disable = duplicate-code
 #
 #  sfzen/scripts/sfz_copy.py
 #
@@ -94,7 +94,7 @@ def main():
 	else:
 		target = Path(options.Target)
 		if target.is_dir():
-			target = target.joinpath(source.name)
+			target = target / source.name
 		print(f'Copying...{linesep}    {source}{linesep} -> {target}')
 		try:
 			sfz.save_as(target, samples_mode = samples_mode)
