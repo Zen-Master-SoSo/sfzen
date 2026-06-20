@@ -101,6 +101,17 @@ def test_iopcodes(good_sfzs):
 				n += 1
 	assert n > 0
 
+def test_iopcode_inheritance(good_sfz_paths):
+	sfz = SFZ(specific_sfz_path(good_sfz_paths, 'SFZ for inheritance checking'))
+	n = 0
+	for region in sfz.regions():
+		if region.opcode('ampeg_attack') is None:
+			opcode = region.iopcode('ampeg_attack')
+			assert opcode is sfz.global_header().opcode('ampeg_attack')
+			opcode.value = 0.999
+			break
+	assert sfz.global_header().opcode('ampeg_attack').value == 0.999
+
 def test_inherited_opcodes(good_sfzs):
 	sfz = specific_sfz(good_sfzs, 'SFZ for inheritance checking')
 	n = 0
