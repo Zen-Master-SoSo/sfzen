@@ -20,7 +20,7 @@
 """
 Compile a list of opcodes which use "sample units"
 """
-from pretty_repr import Repr
+from repr_soso import Repr
 from sfzen import aliases, modulates, K_NAME, K_VALUE, K_UNIT
 from sfzen.opcodes import OPCODES
 

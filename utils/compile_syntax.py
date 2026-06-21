@@ -25,7 +25,7 @@ OPCODES dictionary, used throughout.
 from importlib import import_module
 from re import compile as rcompile
 from pathlib import Path
-from pretty_repr import Repr
+from repr_soso import Repr
 import yaml
 import sfzen
 from sfzen import (

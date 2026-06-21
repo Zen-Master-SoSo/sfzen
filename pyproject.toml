@@ -14,7 +14,7 @@ dynamic = ["version", "description"]
 dependencies = ["progress", "midi_notes >= 1.3.0"]
 
 [project.optional-dependencies]
-devel = ["yaml", "pretty_repr"]
+devel = ["yaml", "repr_soso"]
 
 [project.urls]
 Home = "https://github.com/Zen-Master-SoSo/sfzen"
