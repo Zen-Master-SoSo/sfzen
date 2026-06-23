@@ -610,7 +610,8 @@ class ExternalFile:
 		"""
 		if default_path := kwargs.get('default_path'):
 			self.__default_path = os_any_path(default_path)
-		self.__path = os_any_path(path)
+		if path is not None:
+			self.__path = os_any_path(path)
 
 	@property
 	def path(self):
@@ -1512,8 +1513,11 @@ class Opcode(Element):
 		the appropriate data type and checking if valid.
 		"""
 		self._given_value = value
-		self._value, self.error = self.validator.check_value(
-			replace_defs(value, self.defines), self.match)
+		if value is None:
+			self._value, self.error = None,	None
+		else:
+			self._value, self.error = self.validator.check_value(
+				replace_defs(value, self.defines), self.match)
 
 	@property
 	def given_value(self):
@@ -1923,6 +1927,8 @@ class MinValidator(Validator):
 	def __init__(self, opcode_name, value_def):
 		super().__init__(opcode_name, value_def)
 		type_ = self._type_class()
+		if not isinstance(type_, (float, int)):
+			type_ = float
 		self.min = type_(value_def[K_MIN])
 
 	def check_value(self, value, match):
@@ -1942,6 +1948,8 @@ class RangeValidator(Validator):
 	def __init__(self, opcode_name, value_def):
 		super().__init__(opcode_name, value_def)
 		type_ = self._type_class()
+		if not isinstance(type_, (float, int)):
+			type_ = float
 		self.min = type_(value_def[K_MIN])
 		self.max = type_(value_def[K_MAX])
 
