@@ -102,7 +102,7 @@ def main():
 				if v[K_MAX] is not None:
 					print('Max:'.ljust(KEYLEN) + str(v[K_MAX]))
 				if v[K_DEFAULT]:
-					print('Default:'.ljust(KEYLEN) + v[K_DEFAULT])
+					print('Default:'.ljust(KEYLEN) + str(v[K_DEFAULT]))
 			if d[K_DESCRIPTION]:
 				print(f'Description:{linesep}   ', end = '')
 				print(f'{linesep}   '.join(wrap(d[K_DESCRIPTION])))
