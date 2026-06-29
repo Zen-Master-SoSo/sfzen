@@ -1,6 +1,6 @@
-#  sfzen/drumkits.py
+#  sfzen/sfzen/drumkits.py
 #
-#  Copyright 2025 Leon Dionne <ldionne@dridesign.sh.cn>
+#  Copyright 2025-2026 Leon Dionne <ldionne@dridesign.sh.cn>
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -20,21 +20,23 @@
 """
 Provides classes which are used to manipulate SFZ files in a structure
 correlating with MIDI drum categories and naming conventions.
-
-TODO: Cleanup and update for version 1.0.0
 """
+import logging
 from os import linesep
 from os.path import dirname
-from copy import deepcopy
 from functools import reduce
 from operator import and_, or_
 from midi_notes import Note, MIDI_DRUM_IDS, MIDI_DRUM_PITCHES, MIDI_DRUM_NAMES
-from sfzen import KEY_DEFINING_OPCODES, sorted_opstrings, SFZ, Region as SFZRegion
+from sfzen import (
+	KEY_DEFINING_OPCODES,
+	opstrings_to_dict, opcodes_to_opstrings, sorted_opstrings, sorted_opcode_names,
+	SFZ, Header, Group, Region)
+
 
 # -----------------------------------------------------------------
 # constants
 
-COMMENT_DIVIDER = '// ' + '-' * 76 + linesep
+COMMENT_DIVIDER = '// ' + '-' * 59 + linesep
 
 GROUP_PITCHES = {
 	'bass_drums'	: [35, 36],
@@ -106,6 +108,8 @@ PITCH_GROUPS = {
 	75	: 'others'
 }
 
+LOKEY_HIKEY_OPCODES = [ 'lokey', 'hikey' ]
+
 
 # -----------------------------------------------------------------
 # funcs
@@ -131,41 +135,6 @@ def pitch_id_tuple(pitch_or_id):
 # -----------------------------------------------------------------
 # Drumkit classes
 
-class Region(SFZRegion):
-	"""
-	A representation of an SFZ <region> header.
-
-	Note that when a Drumkit Region is imported from an SFZ or another Drumkit,
-	opcodes from the source region as well as opcodes inherited from container
-	groups, (such as "Group", "Master", and "Global" groups), are included.
-
-	"""
-
-	# pylint: disable-next = super-init-not-called
-	def __init__(self, source_region, source_filename):
-		self._parent = None
-		self.elements = []
-		self._opcodes = source_region.inherited_opcodes()
-		self.filename = source_filename
-		self.line = source_region.line
-		self.column = source_region.column
-		self.end_line = source_region.end_line
-		self.end_column = source_region.end_column
-
-	def write(self, stream, region_exclude):
-		"""
-		Write in SFZ format to any file-like object, including sys.stdout.
-
-		"region_exclude" is a set of string representations (including name and value)
-		of all the opcodes NOT to define in this region, as they are common opcodes
-		defined in a parent header.
-		"""
-		stream.write(f"<region>{linesep}")
-		for opstring in sorted_opstrings(self.opstrings() - region_exclude):
-			stream.write(opstring + linesep)
-		stream.write(linesep)
-
-
 class PercussionInstrument:
 	"""
 	Reresents a single instrument trigerred by a single MIDI note number.
@@ -173,203 +142,93 @@ class PercussionInstrument:
 	sound of the instrument.
 	"""
 
-	def __init__(self, pitch, regions, filename):
+	source_filename = None
+
+	def __init__(self, pitch):
 		"""
-		Used when importing from an SFZ
 		pitch:		(int)	MIDI note number
-		regions:	(list)	Region headers from source SFZ
-		filename:	(str)	Filename from source SFZ
 		"""
 		self.note = Note(pitch)
 		self.pitch = self.note.pitch
 		self.inst_id = MIDI_DRUM_IDS[pitch]
 		self.name = MIDI_DRUM_NAMES[pitch]
-		self.regions = [ Region(region, filename) for region in regions ]
-		self.source_filename = filename
+		self.elements = []
 
-	@property
-	def parent(self):
-		return self._parent
+	def samples(self):
+		"""
+		Generator which yields all the samples used by this PercussionInstrument
+		"""
+		for element in self.elements:
+			yield from element.samples()
 
-	@parent.setter
-	def parent(self, parent):
-		self._parent = parent
-
-	def empty(self):
+	def is_empty(self):
 		"""
 		Returns True if there are no regions defined for this Instrument's pitch
 		"""
-		return len(self.regions) == 0
+		return len(self.elements) == 0
 
-	def write(self, stream, global_opstrings):
+	def kitwalk(self, depth = 0):
+		"""
+		Generator which recusively yields every element contained in this
+		PercussionInstrument. Each iteration returns a tuple (Element, (int) depth)
+		"""
+		yield (self, depth)
+		depth += 1
+		for element in self.elements:
+			yield from element.walk(depth)
+
+	def clone(self):
+		return PercussionInstrument(
+			self.pitch, [
+				element.clone() for element in self.elements
+			], self.source_filename)
+
+	def write(self, stream):
 		"""
 		Write in SFZ format to any file-like object, including sys.stdout
-
 		"global_opstrings" is a set of string representations (including name and
 		value) of all the opcodes NOT to define, as they are common opcodes defined in
 		a parent header.
 		"""
-		stream.write(f'// "{self.name}" - key {self.note.pitch} / {self.note}{linesep}')
-		stream.write(f'// Source: {self.source_filename}{linesep}')
-		if len(self.regions) > 1:
-			# Multiple regions; look for common opstrings:
-			group_opstrings = self.common_opstrings() - global_opstrings
-		else:
-			# One region; select only key -related opstrings
-			region = self.regions[0]
-			group_opstrings = set(
-				str(region.opcodes[key]) \
-				for key in KEY_DEFINING_OPCODES \
-				if key in region.opcodes
-			)
-		region_exclude = global_opstrings | group_opstrings
-		# Determine if we can replace 'lokey', 'hikey' and 'pitch_keycenter with 'key':
-		keyvals = [
-			opstring.split('=', 1)[1] \
-			for opstring in group_opstrings \
-			if opstring.split('=', 1)[0] in KEY_DEFINING_OPCODES
-		]
-		if len(keyvals) == 3 and len(set(keyvals)) == 1:
-			group_opstrings = [
-				opstring \
-				for opstring in group_opstrings \
-				if opstring.split('=', 1)[0] not in KEY_DEFINING_OPCODES
-			]
-			group_opstrings.append(f'key={keyvals[0]}')
-		stream.write(f'<group>{linesep}')
-		for opstring in sorted_opstrings(group_opstrings):
-			stream.write(opstring + linesep)
+		stream.write(f'//  "{self.name}" - key {self.pitch} "{self.note}"{linesep}{linesep}')
+		if self.source_filename:
+			stream.write(f'// Source: {self.source_filename}{linesep}')
+		for element in self.elements:
+			element.write(stream)
 		stream.write(linesep)
-		for region in self.regions:
-			region.write(stream, region_exclude)
-		stream.write(linesep)
-
-	def opstrings_used(self):
-		"""
-		Returns a set of all the string representation (including name and value) of
-		all the opcodes used in this Instrument.
-		"""
-		return reduce(or_, [ region.opstrings() \
-			for region in self.regions ], set())
-
-	def common_opstrings(self):
-		"""
-		Returns a set of all the string representation (including name and value) of
-		all the identical opcodes used in every region in this Instrument.
-		"""
-		opstrings = [ region.opstrings() for region in self.regions ]
-		return reduce(and_, opstrings) if opstrings else set()
-
-	def samples_used(self):
-		"""
-		Returns a set of all raw values of all "sample" opcodes contained in the
-		regions defined for this Instrument.
-		"""
-		return set(region.sample for region in self.regions if region.sample is not None)
-
-	def samples(self):
-		"""
-		Generator which yields every sample opcode (Opcode class)
-		"""
-		for region in self.regions:
-			if 'sample' in region.opcodes:
-				yield region.opcodes['sample']
-
-	def walk(self, depth = 0):
-		"""
-		Generator which recusively yields every element contained in this Drumkit,
-		Each iteration returns a tuple (Element, (int) depth)
-		"""
-		yield (self, depth)
-		depth += 1
-		for region in self.regions:
-			yield from region.walk(depth)
 
 	def __repr__(self):
-		return f"<PercussionInstrument {self.name}>"
+		return f'<PercussionInstrument "{self.name}" (key {self.pitch} - {self.note})>'
 
 
 class PercussionGroup:
 	"""
 	Class used for organizing instruments in a Drumkit, not to be confused with a
 	<group> header in an SFZ file.
-
 	Allows for the manipulation of an entire category of instruments.
 	"""
+
+	source_filename = None
 
 	def __init__(self, group_id):
 		self.group_id = group_id
 		self.name = group_id.replace('_', ' ').title()
 		self.instruments = { }
 
-	@property
-	def parent(self):
-		return self._parent
-
-	@parent.setter
-	def parent(self, parent):
-		self._parent = parent
-
-	def append_instrument(self, pitch, regions, filename):
+	def append_instrument(self, pitch):
 		"""
 		Adds or replaces an instrument in this group.
-		pitch:		(int)	MIDI note number
-		regions:	(list)	"region" header and contained opcodes from SFZ
-		filename:	(str)	Filename from the source SFZ
+		pitch:	(int)	MIDI note number
 		"""
-		self.instruments[pitch] = PercussionInstrument(pitch, regions, filename)
+		self.instruments[pitch] = PercussionInstrument(pitch)
+		return self.instruments[pitch]
 
-	def empty(self):
+	def is_empty(self):
 		"""
 		Returns True if not containing any instruments, or contained instruments
 		contain no Region -type headers.
 		"""
-		return all(inst.empty() for inst in self.instruments.values())
-
-	def write(self, stream, exclude_opstrings):
-		"""
-		Write in SFZ format to any file-like object, including sys.stdout
-
-		"exclude_opstrings" is a set of string representations (including name and value)
-		of all the opcodes NOT to define in this region, as they are common opcodes
-		defined in a parent header.
-		"""
-		stream.write(f'{COMMENT_DIVIDER}// "{self.name}"{linesep}{COMMENT_DIVIDER}{linesep}')
-		for inst in self.instruments.values():
-			if not inst.empty():
-				inst.write(stream, exclude_opstrings)
-
-	def opstrings_used(self):
-		"""
-		Returns a set of all the string representation (including name and value) of
-		all the opcodes used by all Instruments in this Group.
-		"""
-		return reduce(or_, [ instrument.opstrings_used() \
-			for instrument in self.instruments.values() ], set())
-
-	def common_opstrings(self):
-		"""
-		Returns a set of all the string representation (including name and value) of
-		all the identical opcodes used in every region in this Group.
-		"""
-		opstrings = [ instrument.opstrings_used() \
-			for instrument in self.instruments.values() ]
-		return reduce(and_, opstrings) if opstrings else set()
-
-	def samples_used(self):
-		"""
-		Returns a set of all raw values of all "sample" opcodes contained in the
-		regions defined for this Instrument.
-		"""
-		return reduce(or_, [ instrument.samples_used() \
-			for instrument in self.instruments.values() ], set())
-
-	def regions(self):
-		"""
-		Generator which yields every Region header
-		"""
-		for instrument in self.instruments.values():
-			yield from instrument.regions
+		return all(inst.is_empty() for inst in self.instruments.values())
 
 	def samples(self):
 		"""
@@ -378,7 +237,7 @@ class PercussionGroup:
 		for instrument in self.instruments.values():
 			yield from instrument.samples()
 
-	def walk(self, depth = 0):
+	def kitwalk(self, depth = 0):
 		"""
 		Generator which recusively yields every element contained in this Drumkit,
 		Each iteration returns a tuple (Element, (int) depth)
@@ -386,7 +245,23 @@ class PercussionGroup:
 		yield (self, depth)
 		depth += 1
 		for instrument in self.instruments.values():
-			yield from instrument.walk(depth)
+			yield from instrument.kitwalk(depth)
+
+	def clone(self):
+		result = PercussionGroup(self.group_id)
+		result.instruments = { pitch : instrument.clone()
+			for pitch, instrument in self.instruments.items() }
+		return result
+
+	def write(self, stream):
+		"""
+		Write in SFZ format to any file-like object, including sys.stdout
+		"""
+		stream.write(f'{COMMENT_DIVIDER}// Percussion Group "{self.name}"{linesep}{COMMENT_DIVIDER}{linesep}')
+		for inst in self.instruments.values():
+			if not inst.is_empty():
+				inst.write(stream)
+		stream.write(linesep)
 
 	def __repr__(self):
 		return f"<PercussionGroup {self.name}>"
@@ -395,64 +270,74 @@ class PercussionGroup:
 class Drumkit(SFZ):
 	"""
 	A special structure for an SFZ which organizes percussion instruments by groups.
-
 	Passing a filename to the constructor loads the given .sfz file and attaches
 	its regions to a PercussionInstrument. These are organized under
 	PercussionGroup objects.
-
 	You may instantiate an empty Drumkit object and import instruments or groups of
 	instruments from other Drumkit objects.
-
 	Writing a Drumkit produces a standard SFZ formatted text file. The only
 	evidence of the grouping of Regions under PercussionInstrument /
-	PercussionGroup appear in the comments. The SFZ produced will contain only
-	<region> headers (No <group>, <global>, etc.)
+	PercussionGroup appear in the comments.
 	"""
 
-	# pylint: disable-next = super-init-not-called
 	def __init__(self, filename = None):
-		self._parent = None
+		self.percussion_groups = { }
+		self.elements = []
 		self._opcodes = {}
-		self.groups = { group_id:PercussionGroup(group_id) for group_id in GROUP_PITCHES }
-		self.filename = filename
-		if self.filename is None:
-			self.default_path = None
-			self.elements = []
-		else:
-			self.default_path = dirname(self.filename)
-			sfz = SFZ(self.filename)
-			for pitch, group_id in PITCH_GROUPS.items():
-				regions = list(sfz.regions_for(lokey = pitch, hikey = pitch))
-				if regions:
-					self.groups[group_id].append_instrument(pitch, regions, filename)
-			self.adopt_regions()
+		if filename:
+			self.path = filename
+			self._parse()
 
-	def adopt_regions(self):
-		self.elements = list(self.regions())
-		for element in self.elements:
-			element.parent = self
-
-	def write(self, stream):
-		"""
-		Write in SFZ format to any file-like object, including sys.stdout.
-		"""
-		stream.write(f'//{linesep}// {self.name}{linesep}//{linesep}')
-		global_opstrings = self.common_opstrings()
-		if global_opstrings:
-			stream.write(f'{linesep}<global>{linesep}')
-			for opstring in sorted_opstrings(global_opstrings):
-				stream.write(opstring + linesep)
-			stream.write(linesep)
-		for group in self.groups.values():
-			if not group.empty():
-				group.write(stream, global_opstrings)
+	def _parse(self):
+		sfz = SFZ(self.path)
+		for sample in sfz.samples():
+			sample.value = sample.abspath
+		for pitch, group_id in PITCH_GROUPS.items():
+			region_opstring_sets = [ opcodes_to_opstrings(region.inherited_opcodes())
+				for region in sfz.regions_for(key = pitch) ]
+			if region_opstring_sets:
+				instrument = self.percussion_group(group_id).append_instrument(pitch)
+				if len(region_opstring_sets) > 1:
+					group = Group()
+					common_dict = opstrings_to_dict(reduce(and_, region_opstring_sets))
+					for name in LOKEY_HIKEY_OPCODES:
+						if name in common_dict:
+							del common_dict[name]
+					common_dict['key'] = pitch
+					for name in sorted_opcode_names(list(common_dict.keys())):
+						group.append_opcode(name, common_dict[name])
+				else:
+					group = None
+					common_dict = set()
+				for opstrings in region_opstring_sets:
+					region = Region()
+					region_dict = opstrings_to_dict(opstrings)
+					for name in LOKEY_HIKEY_OPCODES:
+						if name in region_dict:
+							del region_dict[name]
+					if common_dict:
+						if 'key' in region_dict:
+							del region_dict['key']
+						for name in sorted_opcode_names(list(region_dict.keys())):
+							if name not in common_dict:
+								region.append_opcode(name, region_dict[name])
+						group.append(region)
+					else:
+						region_dict['key'] = pitch
+						for name in sorted_opcode_names(list(region_dict.keys())):
+							region.append_opcode(name, region_dict[name])
+						instrument.elements.append(region)
+						self.append(region)
+				if common_dict:
+					instrument.elements.append(group)
+					self.append(group)
 
 	def import_group(self, group):
 		"""
 		Do a deep copy from the given Drumkit, of the specified group.
 		(PercussionGroup) group: Source to copy from
 		"""
-		self.groups[group.group_id] = deepcopy(group)
+		self.percussion_groups[group.group_id] = group.clone()
 		self.adopt_regions()
 
 	def import_instrument(self, instrument):
@@ -461,7 +346,7 @@ class Drumkit(SFZ):
 		(PercussionInstrument) instrument: Source to copy from
 		"""
 		group_id = PITCH_GROUPS[instrument.pitch]
-		self.groups[group_id].instruments[instrument.pitch] = deepcopy(instrument)
+		self.percussion_groups[group_id].instruments[instrument.pitch] = instrument.clone()
 		self.adopt_regions()
 
 	def delete_instrument(self, pitch_or_id):
@@ -470,44 +355,27 @@ class Drumkit(SFZ):
 		"""
 		pitch, _ = pitch_id_tuple(pitch_or_id)
 		group_id = PITCH_GROUPS[pitch]
-		del self.groups[group_id].instruments[pitch]
-
-	def common_opstrings(self):
-		"""
-		Returns a set of all the string representation (including name and value) of
-		all the identical opcodes used in every region in this Drumkit.
-		"""
-		sets = [ group.common_opstrings() for group in self.groups.values() ]
-		# Filter empty:
-		sets = [ set_ for set_ in sets if len(set_) ]
-		return reduce(and_, sets) if sets else set()
+		del self.percussion_groups[group_id].instruments[pitch]
 
 	def regions(self):
 		"""
 		Generator which yields every Region header
 		"""
-		for group in self.groups.values():
+		for group in self.percussion_groups.values():
 			yield from group.regions()
 
 	def samples(self):
 		"""
 		Generator which yields every sample opcode (Opcode class)
 		"""
-		for group in self.groups.values():
+		for group in self.percussion_groups.values():
 			yield from group.samples()
-
-	def samples_used(self):
-		"""
-		Returns a set of all raw values of all "sample" opcodes used in this Drumkit.
-		"""
-		return reduce(or_, [ group.samples_used() \
-			for group in self.groups.values() ], set())
 
 	def instruments(self):
 		"""
 		Generator function which yields every instrument.
 		"""
-		for group in self.groups.values():
+		for group in self.percussion_groups.values():
 			yield from group.instruments.values()
 
 	def instrument_ids(self):
@@ -526,18 +394,20 @@ class Drumkit(SFZ):
 		"""
 		Returns a PercussionInstrument.
 		"pitch_or_id" may be a pitch or an instrument id string (i.e. "side_stick").
-
 		Raises IndexError if the instrument is not found in this Drumkit.
 		"""
 		pitch, _ = pitch_id_tuple(pitch_or_id)
 		group_id = PITCH_GROUPS[pitch]
-		return self.groups[group_id].instruments[pitch]
+		return self.percussion_groups[group_id].instruments[pitch]
 
-	def group(self, group_id):
+	def percussion_group(self, group_id):
 		"""
-		Convenience function for syntactic uniformity.
+		Returns PercussionGroup
+		Creates empty group if it doesn't exist
 		"""
-		return self.groups[group_id]
+		if not group_id in self.percussion_groups:
+			self.percussion_groups[group_id] = PercussionGroup(group_id)
+		return self.percussion_groups[group_id]
 
 	def kitwalk(self, depth = 0):
 		"""
@@ -547,18 +417,27 @@ class Drumkit(SFZ):
 		"""
 		yield (self, depth)
 		depth += 1
-		for group in self.groups.values():
-			yield from group.walk(depth)
+		for group in self.percussion_groups.values():
+			yield from group.kitwalk(depth)
 
-	def dump(self):
+	def kitdump(self):
 		"""
 		Print (to stdout) a concise outline of this SFZ.
 		"""
 		for elem, depth in self.kitwalk():
 			print('  ' * depth + repr(elem))
 
+	def write(self, stream):
+		"""
+		Write in SFZ format to any file-like object, including sys.stdout.
+		"""
+		stream.write(f'//{linesep}// {self.filename}{linesep}//{linesep}')
+		for group in self.percussion_groups.values():
+			if not group.is_empty():
+				group.write(stream)
+
 	def __repr__(self):
-		return f"<Drumkit {self.name}>"
+		return f"<Drumkit>"
 
 
-#  end sfzen/drumkits.py
+#  end sfzen/sfzen/drumkits.py
