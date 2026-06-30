@@ -2,7 +2,7 @@
 #
 #  sfzen/scripts/sfz_opcode_usage.py
 #
-#  Copyright 2025 Leon Dionne <ldionne@dridesign.sh.cn>
+#  Copyright 2025-2026 Leon Dionne <ldionne@dridesign.sh.cn>
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
