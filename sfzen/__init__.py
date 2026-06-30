@@ -444,7 +444,12 @@ def opstrings_to_dict(opstring_list: list):
 
 	Returns a dict {opcode_name:opcode_value}.
 	"""
-	return dict([ opstring.split('=', 1) for opstring in opstring_list ])
+	def _split(s):
+		t = s.split('=', 1)
+		if len(t) == 2:
+			return t
+		raise ValueError(f'Could not split opstring: "{s}"')
+	return dict(_split(opstring) for opstring in opstring_list )
 
 def _range_str(rng_dict, opdict):
 	d = rng_dict.copy()
@@ -938,7 +943,7 @@ class Header(Element):
 			if isinstance(element, Header):
 				yield from element.samples()
 
-	def regions_for(self, key = None, lokey = None, hikey = None, lovel = None, hivel = None):
+	def regions_for(self, *, key = None, lokey = None, hikey = None, lovel = None, hivel = None):
 		"""
 		Returns all <region> headers contained in this header and all of its
 		subheaders which matches the given criteria.
@@ -949,7 +954,7 @@ class Header(Element):
 		This is a generator function which yields a Region object on each iteration.
 		"""
 		for region in self.regions():
-			if region.is_triggerd_by(key, lokey, hikey, lovel, hivel):
+			if region.is_triggered_by(key = key, lokey = lokey, hikey = hikey, lovel = lovel, hivel = hivel):
 				yield region
 
 	def includes(self):
@@ -1381,17 +1386,29 @@ class Region(Header):
 		"""
 		return type(header) not in [Global, Master, Group, Region]
 
-	def is_triggerd_by(self, key = None, lokey = None, hikey = None, lovel = None, hivel = None):
+	def is_triggered_by(self, *, key = None, lokey = None, hikey = None, lovel = None, hivel = None):
 		"""
 		Returns boolean True/False if this Region matches the given criteria.
+
 		For example, to test if this region plays Middle C at any velocity:
-			region.is_triggerd_by(lokey = 60, hikey = 60)
+
+			if region.is_triggered_by(key = 60):
+				[...]
 		"""
 		if key is None and lokey is None and hikey is None and lovel is None and hivel is None:
 			raise RuntimeError('Requires a key or velocity to test against')
 		ops = self.inherited_opcodes()
-		if key is not None and 'key' in ops and ops['key'].value != key:
-			return False
+		if key is not None:
+			if lokey is not None:
+				logging.warning(
+					'You should provide either "key" or "lokey" but not both ("key" takes precedence)')
+			if hikey is not None:
+				logging.warning(
+					'You should provide either "key" or "hikey" but not both ("key" takes precedence)')
+			if 'key' in ops and ops['key'].value != key:
+				return False
+			lokey = key
+			hikey = key
 		if lokey is not None and 'lokey' in ops and ops['lokey'].value > lokey:
 			return False
 		if hikey is not None and 'hikey' in ops and ops['hikey'].value < hikey:

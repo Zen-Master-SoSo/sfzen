@@ -20,6 +20,7 @@ devel = ["yaml", "repr_soso"]
 Home = "https://github.com/Zen-Master-SoSo/sfzen"
 
 [project.scripts]
+sfzen = "sfzen.__main__:main"
 sfz-copy = "sfzen.scripts.sfz_copy:main"
 sfz-liquid-safe = "sfzen.scripts.sfz_liquid_safe:main"
 sfz-opcode-info = "sfzen.scripts.sfz_opcode_info:main"
