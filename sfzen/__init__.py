@@ -1631,7 +1631,7 @@ class Sample(Opcode, ExternalFile):
 		Update the default_path and make the "value" of this element a path relative to
 		the new default_path.
 		"""
-		self._value = relpath(self.abspath, sfz_dir.joinpath(self.path.name).absolute())
+		self._value = relpath(self.abspath, sfz_dir.absolute())
 		self.path = self._value
 		self.default_path = None
 
