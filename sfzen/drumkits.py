@@ -178,10 +178,10 @@ class PercussionInstrument:
 			yield from element.walk(depth)
 
 	def clone(self):
-		return PercussionInstrument(
-			self.pitch, [
-				element.clone() for element in self.elements
-			], self.source_filename)
+		inst = PercussionInstrument(self.pitch)
+		inst.elements = [ element.clone() for element in self.elements ]
+		inst.source_filename = self.source_filename
+		return inst
 
 	def write(self, stream):
 		"""
@@ -213,7 +213,7 @@ class PercussionGroup:
 	def __init__(self, group_id):
 		self.group_id = group_id
 		self.name = group_id.replace('_', ' ').title()
-		self.instruments = { }
+		self.instruments = { }	# { pitch : PercussionInstrument }
 
 	def append_instrument(self, pitch):
 		"""
@@ -248,16 +248,17 @@ class PercussionGroup:
 			yield from instrument.kitwalk(depth)
 
 	def clone(self):
-		result = PercussionGroup(self.group_id)
-		result.instruments = { pitch : instrument.clone()
+		group = PercussionGroup(self.group_id)
+		group.instruments = { pitch : instrument.clone()
 			for pitch, instrument in self.instruments.items() }
-		return result
+		return group
 
 	def write(self, stream):
 		"""
 		Write in SFZ format to any file-like object, including sys.stdout
 		"""
-		stream.write(f'{COMMENT_DIVIDER}// Percussion Group "{self.name}"{linesep}{COMMENT_DIVIDER}{linesep}')
+		stream.write(f'{COMMENT_DIVIDER}// Percussion Group "{self.name}"' +
+			f'{linesep}{COMMENT_DIVIDER}{linesep}')
 		for inst in self.instruments.values():
 			if not inst.is_empty():
 				inst.write(stream)
@@ -293,10 +294,11 @@ class Drumkit(SFZ):
 		for sample in sfz.samples():
 			sample.value = sample.abspath
 		for pitch, group_id in PITCH_GROUPS.items():
-			region_opstring_sets = [ opcodes_to_opstrings(region.inherited_opcodes())
+			region_opstring_sets = [ opcodes_to_opstrings(region.inherited_opcodes().values())
 				for region in sfz.regions_for(key = pitch) ]
 			if region_opstring_sets:
 				instrument = self.percussion_group(group_id).append_instrument(pitch)
+
 				if len(region_opstring_sets) > 1:
 					group = Group()
 					common_dict = opstrings_to_dict(reduce(and_, region_opstring_sets))
@@ -309,6 +311,7 @@ class Drumkit(SFZ):
 				else:
 					group = None
 					common_dict = set()
+
 				for opstrings in region_opstring_sets:
 					region = Region()
 					region_dict = opstrings_to_dict(opstrings)
@@ -328,26 +331,29 @@ class Drumkit(SFZ):
 							region.append_opcode(name, region_dict[name])
 						instrument.elements.append(region)
 						self.append(region)
+
 				if common_dict:
 					instrument.elements.append(group)
 					self.append(group)
 
 	def import_group(self, group):
 		"""
-		Do a deep copy from the given Drumkit, of the specified group.
-		(PercussionGroup) group: Source to copy from
+		Clone and adopt the given (PercussionGroup) group
 		"""
 		self.percussion_groups[group.group_id] = group.clone()
-		self.adopt_regions()
+		for instrument in self.percussion_groups[group.group_id].instruments.values():
+			for element in instrument.elements:
+				element.parent = self
 
 	def import_instrument(self, instrument):
 		"""
-		Do a deep copy from the given PercussionInstrument
-		(PercussionInstrument) instrument: Source to copy from
+		Clone and adopt the given (PercussionInstrument) instrument
 		"""
 		group_id = PITCH_GROUPS[instrument.pitch]
-		self.percussion_groups[group_id].instruments[instrument.pitch] = instrument.clone()
-		self.adopt_regions()
+		my_group = self.percussion_group(group_id)
+		my_group.instruments[instrument.pitch] = instrument.clone()
+		for element in my_group.instruments[instrument.pitch].elements:
+			element.parent = self
 
 	def delete_instrument(self, pitch_or_id):
 		"""
