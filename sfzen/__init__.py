@@ -651,7 +651,7 @@ class ExternalFile:
 	@property
 	def abspath(self):
 		"""
-		Returns the (pathlib.Path) absolute path, with symlinks resolved.
+		Returns (pathlib.Path) the absolute path, with symlinks resolved.
 		"""
 		if self.__path is None:
 			return None
