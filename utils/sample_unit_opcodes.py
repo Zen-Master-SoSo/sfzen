@@ -1,6 +1,6 @@
 #  sfzen/utils/sample_unit_opcodes.py
 #
-#  Copyright 2025 Leon Dionne <ldionne@dridesign.sh.cn>
+#  Copyright 2024-2026 Leon Dionne <ldionne@dridesign.sh.cn>
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
