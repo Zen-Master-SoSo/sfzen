@@ -1,4 +1,4 @@
-#  tests/test_40_samples.py
+#  tests/test_40_external_files.py
 #
 #  Copyright 2026 Leon Dionne <ldionne@dridesign.sh.cn>
 #
@@ -23,11 +23,12 @@ from sfzen import *
 from . import *
 
 
-def test_path_construction(good_sfzs):
+def test_paths(good_sfzs):
 	n = 0
 	for sfz in good_sfzs:
 		for element, _ in sfz.walk():
-			if isinstance(element, Sample):
+			if isinstance(element, (Sample, Include)):
+				assert element.sfz is sfz
 				assert isinstance(element.path, Path)
 				assert isinstance(element.abspath, Path)
 				assert element.abspath.exists()
@@ -35,4 +36,5 @@ def test_path_construction(good_sfzs):
 				n += 1
 	assert n > 0
 
-#  end tests/test_40_samples.py
+
+#  end tests/test_40_external_files.py

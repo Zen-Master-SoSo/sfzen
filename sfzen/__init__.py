@@ -1620,7 +1620,7 @@ class Sample(Opcode, ExternalFile):
 
 	def make_absolute(self):
 		"""
-		Make the "value" of this element an absolute path and update the default_path.
+		Make the "value" of this element an absolute path and clear the default_path.
 		"""
 		self._value = str(self.abspath)
 		self.path = os_any_path(self._value)
@@ -1628,10 +1628,10 @@ class Sample(Opcode, ExternalFile):
 
 	def make_relative(self, sfz_dir):
 		"""
-		Update the default_path and make the "value" of this element a path relative to
-		the new default_path.
+		Make the "value" of this element a path relative to its previous path and clear
+		the default_path.
 		"""
-		self._value = relpath(self.abspath, sfz_dir.joinpath(self.path.name).absolute())
+		self._value = relpath(self.abspath, sfz_dir.absolute())
 		self.path = self._value
 		self.default_path = None
 
