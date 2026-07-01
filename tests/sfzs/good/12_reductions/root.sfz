@@ -15,18 +15,18 @@ hivel=64			// assert-remains
 
 <region>
 sample=samples/sample_2.wav	// assert-comment-copied
-lokey=48			// assert-promoted-to-key
-hikey=48			// assert-promoted-to-key
-pitch_keycenter=48	// assert-promoted-to-key
+lokey=49			// assert-promoted-to-key
+hikey=49			// assert-promoted-to-key
+pitch_keycenter=49	// assert-promoted-to-key
 lovel=64			// assert-remains
 hivel=80			// assert-remains
 transpose=0			// assert-removed-default
 
 <region>
 sample=samples/sample_3.wav	// assert-comment-copied
-lokey=48			// assert-promoted-to-key
-hikey=48			// assert-promoted-to-key
-pitch_keycenter=48	// assert-promoted-to-key
+lokey=50			// assert-promoted-to-key
+hikey=50			// assert-promoted-to-key
+pitch_keycenter=50	// assert-promoted-to-key
 lovel=80			// assert-remains
 hivel=127			// assert-removed-default
 tune=0				// assert-removed-default

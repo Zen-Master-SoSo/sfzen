@@ -63,5 +63,9 @@ def specific_sfz(sfzs, search_string):
 			return sfz
 	raise RuntimeError(f'SFZ not found containing "{search_string}"')
 
+def logging_dump(sfz):
+	for elem, depth in sfz.walk():
+		logging.debug('  ' * depth + str(elem))
+
 
 #  end tests/__init__.py
