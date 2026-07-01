@@ -113,11 +113,13 @@ def test_simplification(good_sfzs):
 	sfz = specific_sfz(good_sfzs, 'SFZ for reductions checking')
 	original_regions = sfz.clone_regions()
 	assert len(original_regions) == 3
-	for elem, _ in sfz.walk():
-		if isinstance(elem, Opcode) and 'assert-promoted-to-key' in elem.comment.string:
-			promoted_key = elem.value
+	region_keys = [ region.get_opcode_value('lokey') for region in sfz.regions() ]
 	simp = sfz.simplified()
-	assert simp.global_header().get_opcode_value('key') == promoted_key
+	for index, region in enumerate(simp.regions()):
+		assert region.get_opcode_value('lokey') == None
+		assert region.get_opcode_value('hikey') == None
+		assert region.get_opcode_value('pitch_keycenter') == None
+		assert region.get_opcode_value('key') == region_keys[index]
 	for original_region, simplified_region in zip(original_regions, simp.regions()):
 		for opcode_name, opcode in original_region.opcodes().items():
 			if 'assert-remains' in opcode.comment.string:

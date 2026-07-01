@@ -106,17 +106,33 @@ K_CHOICES		= 'choices'
 # Opcode categories
 
 KEY_DEFINING_OPCODES = [
+	'key',
 	'lokey',
 	'hikey',
 	'pitch_keycenter'
 ]
 
-KEY_TYPE_OPCODES = KEY_DEFINING_OPCODES + [
+KEY_TYPE_OPCODES = [
 	'key',
-	'sw_default',
+	'lokey',
+	'hikey',
 	'sw_lokey',
 	'sw_hikey',
-	'sw_last'
+	'sw_last',
+	'sw_down',
+	'sw_up',
+	'sw_previous',
+	'sw_default',
+	'sw_lolast',
+	'sw_hilast',
+	'amp_keycenter',
+	'xfin_lokey',
+	'xfin_hikey',
+	'xfout_lokey',
+	'xfout_hikey',
+	'pan_keycenter',
+	'fil_keycenter',
+	'pitch_keycenter'
 ]
 
 LOOP_DEFINITION_OPCODES = [
@@ -709,12 +725,12 @@ class Header(Element):
 
 	def __init__(self, **kwargs):
 		super().__init__(**kwargs)
-		self.elements = []
+		self._elements = []
 		self._opcodes = {}
 
 	def clone(self):
 		result = type(self)(comment = self.comment)
-		for elem in self.elements:
+		for elem in self._elements:
 			result.append(elem.clone())
 		return result
 
@@ -734,18 +750,17 @@ class Header(Element):
 		"""
 		return self.append(Opcode(name, value))
 
-	def append_subheader(self, type_):
+	def append_subheader(self, header_name):
 		"""
-		Creates a Header of the given "type_" and adds it to this Header's elements list.
+		Creates a Header of the given (str) "header_name" and adds it to this Header's
+		elements list.
 
-		"type_" must be a (str) valid header class
+		"header_name" must be a valid header class, i.e. Global, Master, Group, Region,
+		Control, Effect, Midi, or Curve.
 
-		Returns the appended Opcode.
+		Returns the appended Header.
 		"""
-		subheader = HEADER_CLASSES[type_.lower()]()
-		if self.may_contain(subheader):
-			return self.append(subheader)
-		raise ValueError(f'"{self.__class__}" header may not contain a "{type_}" subheader')
+		return self.append(HEADER_CLASSES[header_name.lower()]())
 
 	def append(self, element):
 		"""
@@ -753,19 +768,48 @@ class Header(Element):
 
 		Returns the appended element.
 		"""
-		self.elements.append(element)
-		element.parent = self
 		if isinstance(element, Opcode):
 			self._opcodes[element.name] = element
+		elif isinstance(element, Header) and not self.may_contain(element):
+			raise ValueError(f'A "{self.__class__}" header ' + \
+				f'may not contain a "{element.__class__}" subheader')
+		self._elements.append(element)
+		element.parent = self
 		return element
+
+	def remove(self, element):
+		"""
+		Delete the given element, if the element exists as a child of this Header or
+		any of its descendants.
+
+		Raises ValueError if the given element is not contained in this Header.
+		"""
+		if not self._remove(element):
+			raise ValueError(f'"{element}" is not contained in "{self}"')
+
+	def _remove(self, element):
+		"""
+		Called recursively from the "remove" method, this method returns True if the
+		element was removed from this Header.
+		"""
+		if element in self._elements:
+			self._elements.remove(element)
+			if isinstance(element, Opcode):
+				del self._opcodes[element.name]
+			return True
+		# pylint: disable-next = protected-access
+		return any(subheader._remove(element) for subheader in self.subheaders())
 
 	def remove_opcode(self, opcode_name):
 		"""
 		Delete the Opcode having the given opcode_name which is an immediate child of
 		this Header.
+
+		If this Header does not contain an Opcode having the given opcode_name, this
+		method has no effect, and will not raise an error.
 		"""
 		if opcode_name in self._opcodes:
-			self.elements.remove(self._opcodes[opcode_name])
+			self._elements.remove(self._opcodes[opcode_name])
 			del self._opcodes[opcode_name]
 
 	def remove_opcodes(self, opcode_list):
@@ -773,9 +817,19 @@ class Header(Element):
 		Delete all the opcodes in the given list.
 
 		"opcode_list" must be a list of (str) opcode names.
+
+		If this Header does not contain any Opcode with a name given in the
+		opcode_list, this method has no effect, and will not raise an error.
 		"""
 		for opcode_name in opcode_list:
 			self.remove_opcode(opcode_name)
+
+	@property
+	def elements(self):
+		"""
+		Returns all elements: subheaders, comments, and opcodes.
+		"""
+		return self._elements
 
 	def opcodes(self):
 		"""
@@ -783,11 +837,58 @@ class Header(Element):
 		"""
 		return self._opcodes
 
+	def samples(self):
+		"""
+		Returns all "sample" opcodes contained in this Header and all of its
+		subheaders.
+
+		This is a generator function which yields a Sample object on each iteration.
+		"""
+		if 'sample' in self._opcodes:
+			yield self._opcodes['sample']
+		for element in self._elements:
+			if isinstance(element, Header):
+				yield from element.samples()
+
 	def subheaders(self):
 		"""
 		Returns a list of immediate children which are Header elements.
 		"""
-		return [ element for element in self.elements if isinstance(element, Header) ]
+		return [ element for element in self._elements if isinstance(element, Header) ]
+
+	def _descendants_of_type(self, cls):
+		"""
+		A generator function which yields an instance of the given (type) cls contained in
+		this Header or any of its descendant subheaders.
+		"""
+		for element in self._elements:
+			if isinstance(element, cls):
+				yield element
+			elif isinstance(element, Header):
+				yield from element._descendants_of_type(cls)	# pylint: disable = protected-access
+
+		return [ element for element in self._elements if isinstance(element, cls) ]
+
+	def groups(self):
+		"""
+		A generator function which yields all of the <group> headers contained in this
+		Header and all of its descendant subheaders.
+		"""
+		return self._descendants_of_type(Group)
+
+	def regions(self):
+		"""
+		A generator function which yields all of the <region> headers contained in this
+		Header and all of its descendant subheaders.
+		"""
+		return self._descendants_of_type(Region)
+
+	def includes(self):
+		"""
+		A generator function which yields all of the #include directives contained in
+		this Header and all of its descendant subheaders.
+		"""
+		return self._descendants_of_type(Include)
 
 	def inherited_opcodes(self):
 		"""
@@ -917,32 +1018,6 @@ class Header(Element):
 		return set(self._opcodes.keys()) | \
 			reduce(or_, [ sub.opcodes_used() for sub in self.subheaders() ], set())
 
-	def regions(self):
-		"""
-		Returns all <region> headers contained in this Header and all of its
-		subheaders.
-
-		This is a generator function which yields a Region object on each iteration.
-		"""
-		for element in self.elements:
-			if isinstance(element, Region):
-				yield element
-			elif isinstance(element, Header):
-				yield from element.regions()
-
-	def samples(self):
-		"""
-		Returns all "sample" opcodes contained in this Header and all of its
-		subheaders.
-
-		This is a generator function which yields a Sample object on each iteration.
-		"""
-		if 'sample' in self._opcodes:
-			yield self._opcodes['sample']
-		for element in self.elements:
-			if isinstance(element, Header):
-				yield from element.samples()
-
 	def regions_for(self, *, key = None, lokey = None, hikey = None, lovel = None, hivel = None):
 		"""
 		Returns all <region> headers contained in this header and all of its
@@ -956,19 +1031,6 @@ class Header(Element):
 		for region in self.regions():
 			if region.is_triggered_by(key = key, lokey = lokey, hikey = hikey, lovel = lovel, hivel = hivel):
 				yield region
-
-	def includes(self):
-		"""
-		Returns all of the #include directives contained in this Header and all of its
-		subheaders.
-
-		This is a generator function which yields an Include object on each iteration.
-		"""
-		for element in self.elements:
-			if isinstance(element, Include):
-				yield element
-			elif isinstance(element, Header):
-				yield from element.includes()
 
 	def clone_regions(self):
 		"""
@@ -984,14 +1046,12 @@ class Header(Element):
 		"""
 		Reduce "lokey", "hikey", "pitch_keycenter" opcodes to a single "key" opcode.
 		"""
-		key_defining_opcodes = [
-			opcode.value for opcode in self.opcodes().values() \
-			if opcode.name in KEY_DEFINING_OPCODES
-		]
-		if len(key_defining_opcodes) == 3 and len(set(key_defining_opcodes)) == 1:
-			for opcode_name in KEY_DEFINING_OPCODES:
-				self.remove_opcode(opcode_name)
-			self.append(Opcode('key', key_defining_opcodes[0]))
+		key_defining_opcodes = set(self.get_opcode_value(key)
+			for key in KEY_DEFINING_OPCODES
+			if self.get_opcode_value(key) is not None)
+		if len(key_defining_opcodes) == 1:
+			self.remove_opcodes(KEY_DEFINING_OPCODES)
+			self.append(Opcode('key', key_defining_opcodes.pop()))
 
 	def remove_defaults(self):
 		"""
@@ -1002,7 +1062,7 @@ class Header(Element):
 		the value back to the default within the subheading.
 		"""
 		self.remove_opcodes([
-			opcode_name for opcode_name, opcode in self.opcodes().items() \
+			opcode_name for opcode_name, opcode in self._opcodes.items() \
 			if opcode.default_value is not None and opcode.value == opcode.default_value
 		])
 
@@ -1018,7 +1078,7 @@ class Header(Element):
 		"""
 		yield (self, depth)
 		depth += 1
-		for element in self.elements:
+		for element in self._elements:
 			if isinstance(element, Header):
 				yield from element.walk(depth)
 			else:
@@ -1046,7 +1106,7 @@ class Header(Element):
 		depth in the tree, measured from this Header.
 		"""
 		child_depth = depth + 1
-		for element in reversed(self.elements):
+		for element in reversed(self._elements):
 			if isinstance(element, Header):
 				yield from element.reverse_header_walk(child_depth)
 		yield (self, depth)
@@ -1067,19 +1127,19 @@ class Header(Element):
 		continue_merging = True
 		while continue_merging:
 			continue_merging = False
-			for index, element in enumerate(self.elements):
+			for index, element in enumerate(self._elements):
 				if isinstance(element, Header):
 					subelements = element.merge_includes()
 					if isinstance(element, Include):
-						self.elements = self.elements[:index] + \
+						self._elements = self._elements[:index] + \
 							subelements + \
-							self.elements[index + 1:]
+							self._elements[index + 1:]
 						continue_merging = True
 		self._opcodes = {
 			element.name: element \
-			for element in self.elements \
+			for element in self._elements \
 			if isinstance(element, Opcode) }
-		return self.elements
+		return self._elements
 
 	def __str__(self):
 		return f'<{self.__class__.__name__.lower()}>'
@@ -1097,7 +1157,7 @@ class Header(Element):
 		stream.write(f'{linesep}{self}{linesep}')
 		if self.comment:
 			stream.write(f'{self.comment}{linesep}')
-		for element in sorted_elements(self.elements):
+		for element in sorted_elements(self._elements):
 			element.write(stream)
 
 
@@ -1201,14 +1261,14 @@ class SFZ(Header, ExternalFile):
 		Returns the Global header from this SFZ; it one does not exist, creates it at
 		the beginning of the header list.
 		"""
-		for element in self.elements:
+		for element in self._elements:
 			if isinstance(element, Global):
 				return element
 		header = Global()
 		header.parent = self
-		for index, element in enumerate(self.elements):
+		for index, element in enumerate(self._elements):
 			if not isinstance(element, Comment):
-				self.elements.insert(index, header)
+				self._elements.insert(index, header)
 				break
 		return header
 
@@ -1292,7 +1352,6 @@ class SFZ(Header, ExternalFile):
 		regions = self.clone_regions()
 
 		for region in regions:
-			region.condense_key_opcodes()
 			region.remove_defaults()
 
 		# Place opcodes which have the same value in a majority of regions
@@ -1312,6 +1371,9 @@ class SFZ(Header, ExternalFile):
 					for region in regions:
 						if str(region.get_opcode_value(opcode_name)) == opcode_value:
 							region.remove_opcode(opcode_name)
+
+		for region in regions:
+			region.condense_key_opcodes()
 
 		# Sort in key order:
 		regions.sort(key = midi_note_sort_key)
@@ -1344,7 +1406,7 @@ class SFZ(Header, ExternalFile):
 		stream.write(f'// {self.name()}{linesep}')
 		if self.comment:
 			stream.write(f'{self.comment}{linesep}')
-		for element in sorted_elements(self.elements):
+		for element in sorted_elements(self._elements):
 			element.write(stream)
 
 
@@ -1772,7 +1834,7 @@ class Include(SFZ):
 		"stream" may be any file-like object, like "sys.stdout".
 		"""
 		stream.write(f'{linesep}{self}{linesep}{linesep}')
-		for element in self.elements:
+		for element in self._elements:
 			element.write(stream)
 
 

@@ -21,6 +21,7 @@ import logging
 from os import linesep
 from pathlib import Path
 from re import compile as rcompile
+from types import GeneratorType
 from sfzen import *
 from . import *
 
@@ -44,7 +45,7 @@ def test_walk_and_parents(good_sfzs):
 def test_header_walk(good_sfzs):
 	for sfz in good_sfzs:
 		list_1 = [ element for element, depth in sfz.walk() if isinstance(element, Header) ]
-		list_2= [ element for element, depth in sfz.header_walk() ]
+		list_2 = [ element for element, depth in sfz.header_walk() ]
 		for element in list_1:
 			assert isinstance(element, Header)
 		for element in list_2:
@@ -56,6 +57,12 @@ def test_subheader_retrieval(good_sfzs):
 		for header in sfz.subheaders():
 			assert isinstance(header, Header)
 			assert header.sfz is sfz
+
+def test_group_retrieval(good_sfzs):
+	for sfz in good_sfzs:
+		for group in sfz.groups():
+			assert isinstance(group, Group)
+			assert group.sfz is sfz
 
 def test_region_retrieval(good_sfzs):
 	for sfz in good_sfzs:
@@ -170,6 +177,28 @@ def test_append_subheader(good_sfzs):
 			element.append_subheader('region')
 			names.append('region')
 			assert [ child.__class__.__name__.lower() for child in element.elements ] == names
+
+def test_remove(good_sfzs):
+	sfz = specific_sfz(good_sfzs, 'Simple SFZ')
+	original_regions = list(sfz.regions())
+	removal = original_regions[ len(original_regions) // 2 ]
+	sfz.remove(removal)
+	new_regions = list(sfz.regions())
+	assert len(new_regions) == len(original_regions) - 1
+	assert removal not in new_regions
+
+def test_remove_2(good_sfzs):
+	sfz = specific_sfz(good_sfzs, 'Simple SFZ')
+	original_groups = list(sfz.groups())
+	group_lengths = [ len(list(group.regions())) for group in original_groups ]
+	removals = [ next(group.regions()) for group in original_groups ]
+	assert len(removals) == len(original_groups)
+	for removal in removals:
+		assert isinstance(removal, Region)
+		sfz.remove(removal)
+	new_groups = list(sfz.groups())
+	for index, length in enumerate(group_lengths):
+		assert len(list(new_groups[index].regions())) == length - 1
 
 def test_element_str(good_sfzs):
 	for sfz in good_sfzs:

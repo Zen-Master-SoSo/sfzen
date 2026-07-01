@@ -37,12 +37,15 @@ def main():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('Filename', type = str, nargs = '+',
 		help = 'SFZ file name, or directory (with "--recurse").')
-	set_options = parser.add_mutually_exclusive_group()
-	set_options.add_argument('--common', '-c', action = 'store_true',
+	mode_options = parser.add_mutually_exclusive_group()
+	mode_options.add_argument('--check', '-c', action = 'store_true',
+		help = 'Do not show any paths, exit with non-zero status if any samples are missing.')
+	set_options = mode_options.add_mutually_exclusive_group()
+	set_options.add_argument('--common', '-C', action = 'store_true',
 		help = 'Only show paths common to all given files.')
-	set_options.add_argument('--exclusive', '-e', action = 'store_true',
-			help = 'Only show paths which are exclusive to one given file.')
-	path_options = parser.add_mutually_exclusive_group()
+	set_options.add_argument('--exclusive', '-E', action = 'store_true',
+		help = 'Only show paths which are exclusive to one given file.')
+	path_options = mode_options.add_mutually_exclusive_group()
 	path_options.add_argument('--abspath', '-a', action = 'store_true',
 		help = 'Show the absolute path to each sample, with symlinks resolved.')
 	path_options.add_argument('--relpath', '-l', action = 'store_true',
@@ -60,13 +63,25 @@ def main():
 
 	if path_list := given_paths(options):
 		try:
-			do_operations(path_list, options)
+			if options.check:
+				return do_check(path_list)
+			do_report(path_list, options)
 		except KeyboardInterrupt:
 			print()
 			return 3
+
 	return 0
 
-def do_operations(path_list, options):
+
+def do_check(path_list):
+	for path in path_list:
+		sfz = SFZ(path)
+		for sample in sfz.samples():
+			if not sample.exists():
+				return 1
+	return 0
+
+def do_report(path_list, options):
 	sets = [ sample_paths(path, options) for path in path_list ]
 	if options.common:
 		paths = reduce(and_, sets)
