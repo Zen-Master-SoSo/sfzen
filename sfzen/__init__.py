@@ -867,8 +867,6 @@ class Header(Element):
 			elif isinstance(element, Header):
 				yield from element._descendants_of_type(cls)	# pylint: disable = protected-access
 
-		return [ element for element in self._elements if isinstance(element, cls) ]
-
 	def groups(self):
 		"""
 		A generator function which yields all of the <group> headers contained in this
