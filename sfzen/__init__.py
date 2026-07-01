@@ -106,17 +106,33 @@ K_CHOICES		= 'choices'
 # Opcode categories
 
 KEY_DEFINING_OPCODES = [
+	'key',
 	'lokey',
 	'hikey',
 	'pitch_keycenter'
 ]
 
-KEY_TYPE_OPCODES = KEY_DEFINING_OPCODES + [
+KEY_TYPE_OPCODES = [
 	'key',
-	'sw_default',
+	'lokey',
+	'hikey',
 	'sw_lokey',
 	'sw_hikey',
-	'sw_last'
+	'sw_last',
+	'sw_down',
+	'sw_up',
+	'sw_previous',
+	'sw_default',
+	'sw_lolast',
+	'sw_hilast',
+	'amp_keycenter',
+	'xfin_lokey',
+	'xfin_hikey',
+	'xfout_lokey',
+	'xfout_hikey',
+	'pan_keycenter',
+	'fil_keycenter',
+	'pitch_keycenter'
 ]
 
 LOOP_DEFINITION_OPCODES = [
@@ -984,14 +1000,12 @@ class Header(Element):
 		"""
 		Reduce "lokey", "hikey", "pitch_keycenter" opcodes to a single "key" opcode.
 		"""
-		key_defining_opcodes = [
-			opcode.value for opcode in self.opcodes().values() \
-			if opcode.name in KEY_DEFINING_OPCODES
-		]
-		if len(key_defining_opcodes) == 3 and len(set(key_defining_opcodes)) == 1:
-			for opcode_name in KEY_DEFINING_OPCODES:
-				self.remove_opcode(opcode_name)
-			self.append(Opcode('key', key_defining_opcodes[0]))
+		key_defining_opcodes = set(self.get_opcode_value(key)
+			for key in KEY_DEFINING_OPCODES
+			if self.get_opcode_value(key) is not None)
+		if len(key_defining_opcodes) == 1:
+			self.remove_opcodes(KEY_DEFINING_OPCODES)
+			self.append(Opcode('key', key_defining_opcodes.pop()))
 
 	def remove_defaults(self):
 		"""
@@ -1002,7 +1016,7 @@ class Header(Element):
 		the value back to the default within the subheading.
 		"""
 		self.remove_opcodes([
-			opcode_name for opcode_name, opcode in self.opcodes().items() \
+			opcode_name for opcode_name, opcode in self._opcodes.items() \
 			if opcode.default_value is not None and opcode.value == opcode.default_value
 		])
 
@@ -1292,7 +1306,6 @@ class SFZ(Header, ExternalFile):
 		regions = self.clone_regions()
 
 		for region in regions:
-			region.condense_key_opcodes()
 			region.remove_defaults()
 
 		# Place opcodes which have the same value in a majority of regions
@@ -1312,6 +1325,9 @@ class SFZ(Header, ExternalFile):
 					for region in regions:
 						if str(region.get_opcode_value(opcode_name)) == opcode_value:
 							region.remove_opcode(opcode_name)
+
+		for region in regions:
+			region.condense_key_opcodes()
 
 		# Sort in key order:
 		regions.sort(key = midi_note_sort_key)
