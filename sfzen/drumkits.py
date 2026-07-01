@@ -23,14 +23,12 @@ correlating with MIDI drum categories and naming conventions.
 """
 import logging
 from os import linesep
-from os.path import dirname
 from functools import reduce
-from operator import and_, or_
+from operator import and_
 from midi_notes import Note, MIDI_DRUM_IDS, MIDI_DRUM_PITCHES, MIDI_DRUM_NAMES
 from sfzen import (
-	KEY_DEFINING_OPCODES,
-	opstrings_to_dict, opcodes_to_opstrings, sorted_opstrings, sorted_opcode_names,
-	SFZ, Header, Group, Region)
+	opstrings_to_dict, opcodes_to_opstrings, sorted_opcode_names,
+	SFZ, Group, Region)
 
 
 # -----------------------------------------------------------------
@@ -283,11 +281,7 @@ class Drumkit(SFZ):
 
 	def __init__(self, filename = None):
 		self.percussion_groups = { }
-		self.elements = []
-		self._opcodes = {}
-		if filename:
-			self.path = filename
-			self._parse()
+		super().__init__(filename)
 
 	def _parse(self):
 		sfz = SFZ(self.path)
@@ -443,7 +437,7 @@ class Drumkit(SFZ):
 				group.write(stream)
 
 	def __repr__(self):
-		return f"<Drumkit>"
+		return "<Drumkit>"
 
 
 #  end sfzen/sfzen/drumkits.py
