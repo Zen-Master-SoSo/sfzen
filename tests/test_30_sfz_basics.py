@@ -187,7 +187,7 @@ def test_remove(good_sfzs):
 	assert len(new_regions) == len(original_regions) - 1
 	assert removal not in new_regions
 
-def test_remove_2(good_sfzs):
+def test_remove_from_group(good_sfzs):
 	sfz = specific_sfz(good_sfzs, 'Simple SFZ')
 	original_groups = list(sfz.groups())
 	group_lengths = [ len(list(group.regions())) for group in original_groups ]
@@ -201,20 +201,57 @@ def test_remove_2(good_sfzs):
 		assert len(list(new_groups[index].regions())) == length - 1
 
 def test_element_str(good_sfzs):
+	n = 0
 	for sfz in good_sfzs:
-		for elem, _ in sfz.walk():
-			assert isinstance(elem.__str__(), str)
+		for element, _ in sfz.walk():
+			assert isinstance(element.__str__(), str)
+			n += 1
+	assert n > 0
 
 def test_comment_association(good_sfzs):
 	sfz = specific_sfz(good_sfzs, 'Simple SFZ')
 	n = 0
-	for element, depth in sfz.walk():
+	for element, _ in sfz.walk():
 		if isinstance(element, Header):
 			assert element.comment is not None
 		elif isinstance(element, Opcode) \
 			and element.name == 'hivel' \
 			and element.value == 64:
 			assert element.comment is not None
+			n += 1
+	assert n > 0
+
+def test_default_path(good_sfzs):
+	sfz = specific_sfz(good_sfzs, 'SFZ for default path checks')
+	for region in sfz.regions():
+		assert region.default_path is not None
+
+def test_attribute_access(good_sfzs):
+	n = 0
+	for sfz in good_sfzs:
+		for element, _ in sfz.walk():
+			if isinstance(element, Opcode):
+				assert element.value == getattr(element.parent, element.name)
+				n += 1
+	assert n > 0
+
+def test_define_instantiation(good_sfzs):
+	sfz = specific_sfz(good_sfzs, 'SFZ with defines')
+	defines = list(sfz.defines())
+	assert len(defines) > 5
+	for define in defines:
+		assert define.value.isnumeric()
+
+def test_define_replacement(good_sfzs):
+	sfz = specific_sfz(good_sfzs, 'SFZ with defines')
+	defines = { define.varname:define.value for define in sfz.defines() }
+	n = 0
+	for element, _ in sfz.walk():
+		if isinstance(element, Opcode) and element.given_value[0] == '$':
+			varname = element.given_value[1:]
+			assert varname in defines
+			assert defines[varname] == str(element.value)
+			assert defines[varname] == str(getattr(element.parent, element.name))
 			n += 1
 	assert n > 0
 

@@ -50,10 +50,9 @@ def test_clone_regions(good_sfzs):
 			clone_ids = set(id(opcode) for opcode in clone.opcodes().values())
 			assert len(clone_ids) == len(clone.opcodes())
 			assert len(source_ids & clone_ids) == 0
-			if sample := region.sample:
-				cloned_sample = clone.sample
-				assert sample.value == cloned_sample.value
-				assert sample.path == cloned_sample.path
+			if sample := region.opcode('sample'):
+				cloned_sample = clone.opcode('sample')
+				assert sample.abspath == cloned_sample.abspath
 				assert id(sample.path) != id(cloned_sample.path)
 
 def test_region_clone_isolation(good_sfz_paths):
