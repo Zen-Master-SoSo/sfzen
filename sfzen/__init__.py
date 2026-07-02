@@ -285,8 +285,6 @@ def key_group_regions(regions):
 	groups = []
 	for region_list in key_grouped_regions.values():
 		group = Group()
-		for region in region_list:
-			group.append(region)
 		if len(region_list) > 1:
 			common_opstrings = group.common_opstrings()
 			if any(len(region.opcodes()) > len(common_opstrings) for region in region_list):
@@ -294,7 +292,11 @@ def key_group_regions(regions):
 					group.append(Opcode(opcode_name, opcode_value))
 					for region in region_list:
 						region.remove_opcode(opcode_name)
-		groups.append(group)
+		for region in sorted(region_list, key = velocity_sort_key):
+			if len(region._opcodes):
+				group.append(region)
+		if len(group.opstrings_used()):
+			groups.append(group)
 	return groups
 
 def replace_defs(value, define_dict):
@@ -391,6 +393,9 @@ def value_definition(opcode_name):
 	return None
 
 def value_is_undefined(value_def):
+	"""
+	Returns True if the "value" definition from OPCODES defines no type or limits.
+	"""
 	return all([
 		value_def[K_VAR_TYPE] is None,
 		value_def[K_UNIT] is None,
@@ -554,6 +559,14 @@ def midi_note_sort_key(region):
 		hikey = key
 	return lokey * 128 + hikey
 
+def velocity_sort_key(region):
+	"""
+	Provides a key to use for sorting a list of Regions based on "lovel", "hivel" values.
+	"""
+	hivel = float(region.hivel or 127)
+	lovel = float(region.lovel or 1)
+	return (hivel - lovel) / 2 + lovel
+
 
 # ---------------------------
 # Element classes
@@ -570,7 +583,7 @@ class Element:
 	def __init__(self, **kwargs):
 		self.match = kwargs.get('match')
 		self.comment = kwargs.get('comment')
-		self.defines = kwargs.get('defines', {})
+		self._defines = kwargs.get('defines', {})
 
 	@property
 	def parent(self):
@@ -622,46 +635,28 @@ class ExternalFile:
 	resolution and manipulation.
 	"""
 
-	__default_path = None	# Path object
-	__path = None			# Path object
+	_path = None			# Path object
 
 	def __init__(self, path, **kwargs):
 		"""
-		Establishes the "default_path" and "path"
+		Constructor; set "_path"
 		"""
-		if default_path := kwargs.get('default_path'):
-			self.__default_path = os_any_path(default_path)
 		if path is not None:
-			self.__path = os_any_path(path)
+			self._path = os_any_path(path)
 
 	@property
 	def path(self):
 		"""
 		Returns the (pathlib.Path) path
 		"""
-		return self.__path
+		return self._path
 
 	@path.setter
 	def path(self, value):
 		"""
 		Sets the (pathlib.Path) path
 		"""
-		self.__path = None if value is None else os_any_path(value)
-		self._check()
-
-	@property
-	def default_path(self):
-		"""
-		Returns the (pathlib.Path) default_path
-		"""
-		return self.__default_path
-
-	@default_path.setter
-	def default_path(self, value):
-		"""
-		Sets the (pathlib.Path) default_path
-		"""
-		self.__default_path = None if value is None else os_any_path(value)
+		self._path = None if value is None else os_any_path(value)
 		self._check()
 
 	@property
@@ -669,20 +664,21 @@ class ExternalFile:
 		"""
 		Returns (pathlib.Path) the absolute path, with symlinks resolved.
 		"""
-		if self.__path is None:
+		if self._path is None:
 			return None
-		if self.__path.is_absolute():
-			return self.__path
-		if self.sfz is None:			# pylint: disable = no-member
+		if self._path.is_absolute():
+			return self._path
+		sfz = self.sfz					# pylint: disable = no-member
+		if sfz is None:
 			return None
-		if self.sfz is self:			# pylint: disable = no-member
-			return self.__path.resolve()
-		if self.sfz.path is None:		# pylint: disable = no-member
+		if sfz is self:
+			return self._path.resolve()
+		if sfz.path is None:
 			return None
-		dirpath = self.sfz.path.parent	# pylint: disable = no-member
-		if self.__default_path:
-			dirpath = dirpath / self.__default_path
-		return dirpath.joinpath(self.__path).resolve()
+		dirpath = sfz.path.parent
+		if default_path := self.parent.default_path:
+			dirpath = dirpath / default_path
+		return dirpath.joinpath(self._path).resolve()
 
 	def exists(self):
 		"""
@@ -697,7 +693,7 @@ class ExternalFile:
 		"""
 		# pylint: disable-next = attribute-defined-outside-init, no-member
 		self.error = None if self.exists() \
-			else NotFoundError('sample', self.abspath, self.match)
+			else NotFoundError(type(self).__name__, self.abspath, self.match)
 
 
 class Comment(Element):
@@ -880,6 +876,13 @@ class Header(Element):
 		Header and all of its descendant subheaders.
 		"""
 		return self._descendants_of_type(Region)
+
+	def defines(self):
+		"""
+		A generator function which yields all of the #define directives contained in
+		this Header and all of its descendant subheaders.
+		"""
+		return self._descendants_of_type(Define)
 
 	def includes(self):
 		"""
@@ -1064,6 +1067,15 @@ class Header(Element):
 			if opcode.default_value is not None and opcode.value == opcode.default_value
 		])
 
+	def remove_unused_loops(self):
+		"""
+		Removes all opcodes which define loops, when the effective loop_mode is not
+		looped.
+		"""
+		loop_mode = self.loopmode or self.loop_mode
+		if loop_mode not in ('loop_continuous', 'loop_sustain'):
+			self.remove_opcodes(LOOP_DEFINITION_OPCODES)
+
 	def walk(self, depth = 0):
 		"""
 		Generator which recusively yields every element contained in this Header,
@@ -1187,7 +1199,6 @@ class SFZ(Header, ExternalFile):
 		errors = []
 		parser = Parser(self.abspath)
 		current_header = self
-		default_path = None
 		for match in parser:
 			if isinstance(match, CommentMatch):
 				comment = Comment(match.string, match = match)
@@ -1212,25 +1223,25 @@ class SFZ(Header, ExternalFile):
 				if define.error:
 					errors.append(define.error)
 				else:
-					self.defines[define.varname] = define.value
+					self._defines[define.varname] = define.value
 				current_header.append(define)
 			elif isinstance(match, IncludeMatch):
 				include = Include(match.filename,
 					match = match,
-					comment = match.comment,
-					default_path = default_path)
+					defines = self._defines)
 				current_header.append(include)
+				if include.exists():
+					include._parse()
+				self._defines.update(include._defines)
 				errors.append(include.error)		# May be NotFoundError
 				errors.extend(include.errors)		# All other errors found during parsing
 			elif isinstance(match, OpcodeMatch):
 				opcode = Opcode(match.key, match.value,
 					match = match,
 					comment = match.comment,
-					default_path = default_path)
+					defines = self._defines)
 				current_header.append(opcode)
 				errors.append(opcode.error)
-				if opcode.name == 'default_path':
-					default_path = opcode.value
 			elif isinstance(match, ParseError):
 				errors.append(match)
 			else:
@@ -1351,6 +1362,7 @@ class SFZ(Header, ExternalFile):
 
 		for region in regions:
 			region.remove_defaults()
+			region.remove_unused_loops()
 
 		# Place opcodes which have the same value in a majority of regions
 		# into the global header:
@@ -1378,7 +1390,8 @@ class SFZ(Header, ExternalFile):
 
 		# Group regions based on common key:
 		for group in key_group_regions(regions):
-			simplified_sfz.append(group)
+			if group.opstrings_used():
+				simplified_sfz.append(group)
 
 		if len(global_header.opcodes()):
 			simplified_sfz.elements.insert(0, global_header)
@@ -1479,14 +1492,6 @@ class Region(Header):
 			return False
 		return True
 
-	@property
-	def sample(self):
-		"""
-		Returns the Sample opcode contained in this <region>
-		Returns None if no Sample has yet defined.
-		"""
-		return self.opcode('sample')
-
 
 class Control(Header):
 	"""
@@ -1551,23 +1556,20 @@ class Opcode(Element):
 
 		"match" is a ParserMatch returned by sfzen.Parser.
 		"comment" is a Comment element associated with this element.
-		"default_path" is a pathlib.Path, to be consumed by the "sample" constructor.
 		"defines" is a dict of variables defined in the SFZ.
 
 		All of these arguments are passed to the constructor during parsing of an
 		existing SFZ file. You can safely ignore them when constructing an SFZ from
-		scratch, although the default_path argument might be very important when
-		constructing a Sample.
+		scratch.
 		"""
 		super().__init__(**kwargs)
 		self._given_name = name
-		self._name = replace_defs(name, self.defines)
-		assert isinstance(self._name, str)
+		self._name = replace_defs(name, self._defines)
 		self.validator = Validator.get_validator(self._name)	# set before setting "value"
 		self.value = value	# Using property setting forces validation
 
 	def clone(self):
-		return Opcode(self._given_name, self._given_value, comment = self.comment)
+		return Opcode(self._name, self._value, comment = self.comment)
 
 	@property
 	def name(self):
@@ -1594,7 +1596,7 @@ class Opcode(Element):
 			self._value, self.error = None,	None
 		else:
 			self._value, self.error = self.validator.check_value(
-				replace_defs(value, self.defines), self.match)
+				replace_defs(value, self._defines), self.match)
 
 	@property
 	def given_value(self):
@@ -1653,13 +1655,12 @@ class Sample(Opcode, ExternalFile):
 		Opcode.__init__(self, name, value, **kwargs)
 
 	def clone(self):
-		return Sample(self._given_name, self._given_value,
-			default_path = self.default_path, comment = self.comment)
+		return Sample(self._name, self.abspath, comment = self.comment)
 
 	@Opcode.value.setter
 	def value(self, value):
 		self._given_value = value
-		self._value = replace_defs(str(value), self.defines)
+		self._value = replace_defs(str(value), self._defines)
 		self.path = os_any_path(self._value)
 
 	@Element.parent.setter
@@ -1680,64 +1681,61 @@ class Sample(Opcode, ExternalFile):
 
 	def make_absolute(self):
 		"""
-		Make the "value" of this element an absolute path and clear the default_path.
+		Make the "value" of this element an absolute path.
 		"""
 		self._value = str(self.abspath)
 		self.path = os_any_path(self._value)
-		self.default_path = None
 
 	def make_relative(self, sfz_dir):
 		"""
-		Make the "value" of this element a path relative to its previous path and clear
-		the default_path.
+		Make the "value" of this element a path relative to its previous path.
 		"""
 		self._value = relpath(self.abspath, sfz_dir.absolute())
 		self.path = self._value
-		self.default_path = None
 
 	def copy_to(self, samples_dir, overwrite):
 		"""
 		Copy the sample file to a new location and update the "value" of this sample to
-		a path relative to the new default_path.
+		a path relative to the new sfz path.
 
 		"samples_dir" is a Path to the directory where the samples are to be written.
 		"""
 		new_path = self._new_target(samples_dir, overwrite)
 		copyfile(self.abspath, new_path)
-		self._update_paths(samples_dir, new_path)
+		self._update_path(samples_dir, new_path)
 
 	def move_to(self, samples_dir, overwrite):
 		"""
 		Move the sample file to a new location and update the "value" of this sample to
-		a path relative to the new default_path.
+		a path relative to the new sfz path.
 
 		"samples_dir" is a Path to the directory where the samples are to be written.
 		"""
 		new_path = self._new_target(samples_dir, overwrite)
 		move(self.abspath, new_path)
-		self._update_paths(samples_dir, new_path)
+		self._update_path(samples_dir, new_path)
 
 	def symlink_to(self, samples_dir, overwrite):
 		"""
 		Create a symlink to the original sample inside a new samples directory,
-		relative to the new default_path.
+		relative to the new sfz path.
 
 		"samples_dir" is a Path to the directory where the samples are to be written.
 		"""
 		new_path = self._new_target(samples_dir, overwrite)
 		new_path.symlink_to(self.abspath)
-		self._update_paths(samples_dir, new_path)
+		self._update_path(samples_dir, new_path)
 
 	def hardlink_to(self, samples_dir, overwrite):
 		"""
 		Create a hardlink to the original sample inside a new samples directory,
-		relative to the new default_path.
+		relative to the new sfz path.
 
 		"samples_dir" is a Path to the directory where the samples are to be written.
 		"""
 		new_path = self._new_target(samples_dir, overwrite)
 		self.abspath.link_to(new_path)
-		self._update_paths(samples_dir, new_path)
+		self._update_path(samples_dir, new_path)
 
 	def _new_target(self, samples_dir, overwrite):
 		"""
@@ -1751,15 +1749,14 @@ class Sample(Opcode, ExternalFile):
 				raise RuntimeError(f'File exists: "{new_path}"')
 		return new_path
 
-	def _update_paths(self, samples_dir, new_path):
+	def _update_path(self, samples_dir, new_path):
 		"""
-		Updates this Sample's "default_path" and "path" attributes after a
-		copy/move/symlink/hardlink operation.
+		Updates this Sample's "path" attribute after a copy/move/symlink/hardlink.
 		"""
-		self.path = new_path.relative_to(samples_dir.parent)
-		self.default_path = None
+		self._path = new_path.relative_to(samples_dir.parent)
 		self._given_value = str(self.path)
 		self._value = self._given_value
+		self._check()
 
 
 class Define(Element):
@@ -1819,7 +1816,7 @@ class Include(SFZ):
 		self.path = value
 
 	def clone(self):
-		return Include(self.path, default_path = self.default_path, comment = self.comment)
+		return Include(self.path, comment = self.comment)
 
 	def __str__(self):
 		return f'#include "{self.path}"'
