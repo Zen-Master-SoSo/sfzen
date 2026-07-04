@@ -357,20 +357,6 @@ class Drumkit(SFZ):
 		group_id = PITCH_GROUPS[pitch]
 		del self.percussion_groups[group_id].instruments[pitch]
 
-	def regions(self):
-		"""
-		Generator which yields every Region header
-		"""
-		for group in self.percussion_groups.values():
-			yield from group.regions()
-
-	def samples(self):
-		"""
-		Generator which yields every sample opcode (Opcode class)
-		"""
-		for group in self.percussion_groups.values():
-			yield from group.samples()
-
 	def instruments(self):
 		"""
 		Generator function which yields every instrument.
