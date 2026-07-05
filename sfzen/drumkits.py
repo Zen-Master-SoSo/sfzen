@@ -21,7 +21,6 @@
 Provides classes which are used to manipulate SFZ files in a structure
 correlating with MIDI drum categories and naming conventions.
 """
-import logging
 from os import linesep
 from functools import reduce
 from operator import and_

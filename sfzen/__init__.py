@@ -293,7 +293,7 @@ def key_group_regions(regions):
 					for region in region_list:
 						region.remove_opcode(opcode_name)
 		for region in sorted(region_list, key = velocity_sort_key):
-			if len(region._opcodes):
+			if len(region.opcodes()):
 				group.append(region)
 		if len(group.opstrings_used()):
 			groups.append(group)
@@ -676,7 +676,7 @@ class ExternalFile:
 		if sfz.path is None:
 			return None
 		dirpath = sfz.path.parent
-		if default_path := self.parent.default_path:
+		if default_path := self.parent.default_path: 	# pylint: disable = no-member
 			dirpath = dirpath / default_path
 		return dirpath.joinpath(self._path).resolve()
 
@@ -693,7 +693,10 @@ class ExternalFile:
 		"""
 		# pylint: disable-next = attribute-defined-outside-init, no-member
 		self.error = None if self.exists() \
-			else NotFoundError(type(self).__name__, self.abspath, self.match)
+			else NotFoundError(
+				type(self).__name__,
+				self.abspath,
+				self.match)	# pylint: disable = no-member
 
 
 class Comment(Element):
@@ -1231,10 +1234,10 @@ class SFZ(Header, ExternalFile):
 					defines = self._defines)
 				current_header.append(include)
 				if include.exists():
-					include._parse()
-				self._defines.update(include._defines)
-				errors.append(include.error)		# May be NotFoundError
-				errors.extend(include.errors)		# All other errors found during parsing
+					include._parse()					# pylint: disable = protected-access
+				self._defines.update(include._defines)	# pylint: disable = protected-access
+				errors.append(include.error)			# May be NotFoundError
+				errors.extend(include.errors)			# All other errors found during parsing
 			elif isinstance(match, OpcodeMatch):
 				opcode = Opcode(match.key, match.value,
 					match = match,
@@ -1734,7 +1737,10 @@ class Sample(Opcode, ExternalFile):
 		"samples_dir" is a Path to the directory where the samples are to be written.
 		"""
 		new_path = self._new_target(samples_dir, overwrite)
-		self.abspath.link_to(new_path)
+		if hasattr(new_path, 'hardlink_to'):
+			new_path.hardlink_to(self.abspath)
+		else:
+			self.abspath.link_to(new_path)
 		self._update_path(samples_dir, new_path)
 
 	def _new_target(self, samples_dir, overwrite):
