@@ -1343,7 +1343,7 @@ class SFZ(Header, ExternalFile):
 					sample.hardlink_to(samples_dir, overwrite)
 		for header, _ in self.header_walk():
 			header.remove_opcode('default_path')
-		self.path = filename
+		self.path = Path(filename)
 		self.save()
 		self.errors = []
 		for sample in self.samples():
@@ -1400,7 +1400,8 @@ class SFZ(Header, ExternalFile):
 			simplified_sfz.elements.insert(0, global_header)
 			global_header.parent = simplified_sfz
 
-		simplified_sfz.path = self.path.parent.joinpath(self.path.stem + '-simplified.sfz')
+		if self.path:
+			simplified_sfz.path = self.path.parent.joinpath(self.path.stem + '-simplified.sfz')
 		return simplified_sfz
 
 	def dump(self):
