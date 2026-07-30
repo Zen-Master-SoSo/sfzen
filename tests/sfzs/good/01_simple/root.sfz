@@ -7,16 +7,19 @@ lokey=36
 hikey=48
 
 <region>
+// Multi-line comment
 // Quiet notes
 hivel=64	// Only respond to velocity at or below mezzopiano
 sample=samples/sample_1.wav
 
 <region>
+// Multi-line comment
 // Mid-velocity notes
 lovel=64 hivel=80
 sample=samples/sample_2.wav
 
 <region>
+// Multi-line comment
 // Loud notes
 lovel=80
 sample=samples/sample_3.wav
@@ -26,16 +29,19 @@ sample=samples/sample_3.wav
 lokey=C#3 hikey=C4
 
 <region>
+// Multi-line comment
 // Quiet notes
 hivel=64	// Only respond to velocity at or below mezzopiano
 sample=samples/sample_1.wav
 
 <region>
+// Multi-line comment
 // Mid-velocity notes
 lovel=64 hivel=80	// Respond to velocities from mezzopiano to mezzoforte
 sample=samples/sample_2.wav
 
 <region>
+// Multi-line comment
 // Loud notes
 lovel=80	// hivel is implied
 sample=samples/sample_3.wav

@@ -64,7 +64,7 @@ class Parser:
 
 				self._current_element_comment = None
 				if match := CommentMatch.match(line_number, line):
-					line = line[:match.start].rstrip()
+					line = line[:match.start]
 					if len(line):
 						self._current_element_comment = match
 					else:
@@ -144,8 +144,8 @@ class CommentMatch(ParseMatch):
 		"""
 		Returns a CommentMatch if matched, else none.
 		"""
-		if m := cls.regex.search(line):
-			return cls(line_number, m)
+		if re_match := cls.regex.search(line):	# <- uses search, rather than match
+			return cls(line_number, re_match)
 		return None
 
 

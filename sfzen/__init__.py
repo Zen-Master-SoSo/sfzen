@@ -611,8 +611,12 @@ class Element:
 			element = element._parent	# pylint: disable = protected-access
 		return element if isinstance(element, SFZ) else None
 
+	def _str(self, subclass_string):
+		return f'{subclass_string} {self.comment.string}' \
+			if self.comment else subclass_string
+
 	def __repr__(self):
-		return self.__class__.__name__
+		return f'<{self.__class__.__name__}>'
 
 	def write(self, stream):
 		"""
@@ -620,10 +624,7 @@ class Element:
 
 		"stream" may be any file-like object, like "sys.stdout".
 		"""
-		stream.write(str(self))
-		if self.comment:
-			stream.write(f' {self.comment}')
-		stream.write(linesep)
+		stream.write(str(self) + linesep)
 
 	def clone(self):
 		raise NotImplementedError()
@@ -711,7 +712,13 @@ class Comment(Element):
 	def __str__(self):
 		return self.string
 
+	def __repr__(self):
+		return f'<Comment "{self.string}">'
+
 	def clone(self):
+		"""
+		Returns a copy of this Comment.
+		"""
 		return Comment(self.string)
 
 
@@ -728,6 +735,9 @@ class Header(Element):
 		self._opcodes = {}
 
 	def clone(self):
+		"""
+		Returns a copy of this Header and all of its contained elements.
+		"""
 		result = type(self)(comment = self.comment)
 		for elem in self._elements:
 			result.append(elem.clone())
@@ -1155,10 +1165,13 @@ class Header(Element):
 		return self._elements
 
 	def __str__(self):
-		return f'<{self.__class__.__name__.lower()}>'
+		string = f'<{self.__class__.__name__.lower()}>'
+		if self.comment and linesep in self.comment.string:
+			return string + linesep + self.comment.string
+		return self._str(string)
 
 	def __repr__(self):
-		return f'{self.__class__.__name__} ({len(self._opcodes):d} opcodes)'
+		return f'<{self.__class__.__name__} ({len(self._opcodes):d} opcodes)>'
 
 	def write(self, stream):
 		"""
@@ -1167,9 +1180,7 @@ class Header(Element):
 
 		"stream" may be any file-like object, like "sys.stdout".
 		"""
-		stream.write(f'{linesep}{self}{linesep}')
-		if self.comment:
-			stream.write(f'{self.comment}{linesep}')
+		stream.write(linesep + str(self) + linesep)
 		for element in sorted_elements(self._elements):
 			element.write(stream)
 
@@ -1203,6 +1214,8 @@ class SFZ(Header, ExternalFile):
 		parser = Parser(self.abspath)
 		current_header = self
 		for match in parser:
+			match_comment = Comment(match.comment.string, match = match.comment) \
+				if match.comment else None
 			if isinstance(match, CommentMatch):
 				comment = Comment(match.string, match = match)
 				if current_header.elements or current_header.comment:
@@ -1213,7 +1226,7 @@ class SFZ(Header, ExternalFile):
 				header_name = match.header_name.lower()
 				if header_name in HEADER_CLASSES:
 					header = HEADER_CLASSES[header_name](
-						match = match, comment = match.comment)
+						match = match, comment = match_comment)
 					while not current_header.may_contain(header):
 						current_header = current_header.parent
 					current_header.append(header)
@@ -1222,7 +1235,7 @@ class SFZ(Header, ExternalFile):
 					errors.append(InvalidHeaderError(header_name, match))
 			elif isinstance(match, DefineMatch):
 				define = Define(match.key, match.value,
-					match = match, comment = match.comment)
+					match = match, comment = match_comment)
 				if define.error:
 					errors.append(define.error)
 				else:
@@ -1230,7 +1243,7 @@ class SFZ(Header, ExternalFile):
 				current_header.append(define)
 			elif isinstance(match, IncludeMatch):
 				include = Include(match.filename,
-					match = match,
+					match = match, comment = match_comment,
 					defines = self._defines)
 				current_header.append(include)
 				if include.exists():
@@ -1240,8 +1253,7 @@ class SFZ(Header, ExternalFile):
 				errors.extend(include.errors)			# All other errors found during parsing
 			elif isinstance(match, OpcodeMatch):
 				opcode = Opcode(match.key, match.value,
-					match = match,
-					comment = match.comment,
+					match = match, comment = match_comment,
 					defines = self._defines)
 				current_header.append(opcode)
 				errors.append(opcode.error)
@@ -1418,11 +1430,12 @@ class SFZ(Header, ExternalFile):
 
 		"stream" may be any file-like object, like "sys.stdout".
 		"""
-		stream.write(f'// {self.name()}{linesep}')
+		stream.write(f'// {self.filename}{linesep}')
 		if self.comment:
 			stream.write(f'{self.comment}{linesep}')
 		for element in sorted_elements(self._elements):
 			element.write(stream)
+		stream.write(linesep)
 
 
 class Global(Header):
@@ -1524,7 +1537,7 @@ class Curve(Header):
 	points = {}
 
 	def __str__(self):
-		return f'<curve>curve_index={self.curve_index}'
+		return self._str(f'<curve>curve_index={self.curve_index}')
 
 	def write(self, stream):
 		"""
@@ -1533,7 +1546,7 @@ class Curve(Header):
 
 		"stream" may be any file-like object, like "sys.stdout".
 		"""
-		stream.write(f'{self}{linesep}')
+		stream.write(str(self) + linesep)
 		for key, val in self.points.items():
 			stream.write(f'{key}={val}{linesep}')
 
@@ -1573,19 +1586,23 @@ class Opcode(Element):
 		self.value = value	# Using property setting forces validation
 
 	def clone(self):
+		"""
+		Returns a copy of this Opcode.
+		"""
 		return Opcode(self._name, self._value, comment = self.comment)
 
 	@property
 	def name(self):
 		"""
-		Returns the value as the type defined in the opcode definition.
+		The name of this Opcode after replacing any $defines in the given name.
 		"""
 		return self._name
 
 	@property
 	def value(self):
 		"""
-		Returns the value as the type defined in the opcode definition.
+		The value of this Opcode after replacing any $defines in the given
+		name, cast as the type defined in the opcode definition.
 		"""
 		return self._value
 
@@ -1605,44 +1622,45 @@ class Opcode(Element):
 	@property
 	def given_value(self):
 		"""
-		Returns the value given (as during parsing), without modification
+		The value given (as during parsing), without modification (no $defines replaced).
 		"""
 		return self._given_value
 
 	@cached_property
 	def default_value(self):
 		"""
-		Returns the default value as the type defined in the opcode definition.
+		The default value defined in the opcode definition, cast as the type
+		defined in the opcode definition.
 		"""
 		return self.validator.default_value
 
 	@cached_property
 	def type_str(self):
 		"""
-		Returns the string "var_type" defined in the opcode definition.
+		The (str) "var_type" defined in the opcode definition.
 		"""
 		return self.validator.type_str
 
 	@cached_property
 	def unit(self):
 		"""
-		Returns the unit defined in the opcode definition.
+		The (str) unit defined in the opcode definition.
 		"""
 		return self.validator.unit
 
 	@cached_property
 	def definition(self):
 		"""
-		Returns the defintion of this opcode from the SFZ syntax (see opcodes.py)
+		The defintion of this Opcode from the SFZ syntax (see opcodes.py)
 		The defintion name is normalized, replacing "_ccN" -type elements.
 		"""
 		return opcode_definition(self._name)
 
 	def __str__(self):
-		return f'{self._name}={self._value}'
+		return self._str(f'{self._name}={self._value}')
 
 	def __repr__(self):
-		return f'{self.__class__.__name__} {self}'
+		return f'<{self.__class__.__name__} {self}>'
 
 
 class Sample(Opcode, ExternalFile):
@@ -1659,6 +1677,9 @@ class Sample(Opcode, ExternalFile):
 		Opcode.__init__(self, name, value, **kwargs)
 
 	def clone(self):
+		"""
+		Returns a copy of this Sample.
+		"""
 		return Sample(self._name, self.abspath, comment = self.comment)
 
 	@Opcode.value.setter
@@ -1671,17 +1692,6 @@ class Sample(Opcode, ExternalFile):
 	def parent(self, parent):
 		self._parent = parent
 		self._check()
-
-	def write(self, stream):
-		"""
-		Ouput the string representation of this Sample in SFZ format.
-
-		"stream" may be any file-like object, like "sys.stdout".
-		"""
-		stream.write(str(self))
-		if self.comment:
-			stream.write(f' {self.comment}')
-		stream.write(linesep)
 
 	def make_absolute(self):
 		"""
@@ -1786,10 +1796,13 @@ class Define(Element):
 		self.value = value
 
 	def clone(self):
+		"""
+		Returns a copy of this Define.
+		"""
 		return Define(self.varname, self.value, comment = self.comment)
 
 	def __str__(self):
-		return f'#define ${self.varname} {self.value}'
+		return self._str(f'#define ${self.varname} {self.value}')
 
 
 class Include(SFZ):
@@ -1814,19 +1827,22 @@ class Include(SFZ):
 	@property
 	def value(self):
 		"""
-		Returns the value as the type defined in the opcode definition.
+		Returns (str) the path to the included file.
 		"""
 		return str(self.path)
 
 	@value.setter
 	def value(self, value):
-		self.path = value
+		self.path = Path(value)
 
 	def clone(self):
+		"""
+		Returns a copy of this Include.
+		"""
 		return Include(self.path, comment = self.comment)
 
 	def __str__(self):
-		return f'#include "{self.path}"'
+		return self._str(f'#include "{self.path}"')
 
 	def write(self, stream):
 		"""
@@ -1838,6 +1854,7 @@ class Include(SFZ):
 		stream.write(f'{linesep}{self}{linesep}{linesep}')
 		for element in self._elements:
 			element.write(stream)
+		stream.write(linesep)
 
 
 # ---------------------------
@@ -1934,7 +1951,7 @@ class Validator:
 	@property
 	def default_value(self):
 		"""
-		Returns the default value as the type defined in the opcode definition.
+		The default value as the type defined in the opcode definition.
 		"""
 		if self.value_def[K_DEFAULT] is None:
 			return None
@@ -1944,14 +1961,14 @@ class Validator:
 	@property
 	def type_str(self):
 		"""
-		Returns the "var_type" string defined in the opcode definition.
+		The "var_type" string defined in the opcode definition.
 		"""
 		return self.value_def[K_VAR_TYPE]
 
 	@property
 	def unit(self):
 		"""
-		Returns the unit defined in the opcode definition.
+		The unit defined in the opcode definition.
 		"""
 		return self.value_def[K_UNIT]
 

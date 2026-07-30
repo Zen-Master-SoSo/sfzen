@@ -210,16 +210,21 @@ def test_element_str(good_sfzs):
 
 def test_comment_association(good_sfzs):
 	sfz = specific_sfz(good_sfzs, 'Simple SFZ')
-	n = 0
+	n1 = 0
+	n2 = 0
 	for element, _ in sfz.walk():
 		if isinstance(element, Header):
 			assert element.comment is not None
+			if 'Multi-line comment' in element.comment.string:
+				assert linesep in element.comment.string
+				assert element.comment.string.count('//') > 1
+				n2 += 1
 		elif isinstance(element, Opcode) \
 			and element.name == 'hivel' \
 			and element.value == 64:
 			assert element.comment is not None
-			n += 1
-	assert n > 0
+			n1 += 1
+	assert n1 > 0
 
 def test_default_path(good_sfzs):
 	sfz = specific_sfz(good_sfzs, 'SFZ for default path checks')

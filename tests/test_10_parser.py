@@ -49,7 +49,8 @@ def test_header_values(good_sfz_paths):
 	assert n > 0
 
 def test_comment_match(good_sfz_paths):
-	n = 0
+	n1 = 0
+	n2 = 0
 	for path in good_sfz_paths:
 		parser = Parser(path)
 		for match in parser:
@@ -57,8 +58,13 @@ def test_comment_match(good_sfz_paths):
 				assert isinstance(match.string, str)
 				assert len(match.string) > 0
 				assert match.string[0:2] == '//'
-				n += 1
-	assert n > 0
+				if 'Multi-line comment' in match.string:
+					assert linesep in match.string
+					assert match.string.count('//') > 1
+					n2 += 1
+				n1 += 1
+	assert n1 > 0
+	assert n2 > 0
 
 def test_define_match(good_sfz_paths):
 	parser = Parser(specific_sfz_path(good_sfz_paths, 'SFZ with defines'))
