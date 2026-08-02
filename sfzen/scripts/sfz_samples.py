@@ -39,7 +39,9 @@ def main():
 		help = 'SFZ file name, or directory (with "--recurse").')
 	mode_options = parser.add_mutually_exclusive_group()
 	mode_options.add_argument('--check', '-c', action = 'store_true',
-		help = 'Do not show any paths, exit with non-zero status if any samples are missing.')
+		help = 'Do not show paths; exit with non-zero status if any samples are missing.')
+	mode_options.add_argument('--size', '-s', action = 'store_true',
+		help = 'Do not show paths; show total size of all samples.')
 	set_options = mode_options.add_mutually_exclusive_group()
 	set_options.add_argument('--common', '-C', action = 'store_true',
 		help = 'Only show paths common to all given files.')
@@ -65,6 +67,8 @@ def main():
 		try:
 			if options.check:
 				return do_check(path_list)
+			if options.size:
+				return do_size(path_list)
 			do_report(path_list, options)
 		except KeyboardInterrupt:
 			print()
@@ -72,13 +76,22 @@ def main():
 
 	return 0
 
-
 def do_check(path_list):
 	for path in path_list:
 		sfz = SFZ(path)
 		for sample in sfz.samples():
 			if not sample.exists():
 				return 1
+	return 0
+
+def do_size(path_list):
+	for path in path_list:
+		sfz = SFZ(path)
+		total_size = 0
+		for sample in sfz.samples():
+			if sample.exists():
+				total_size += sample.abspath.stat().st_size
+		print(f' {total_size:12d} {sfz.path}')
 	return 0
 
 def do_report(path_list, options):
@@ -92,7 +105,6 @@ def do_report(path_list, options):
 	if paths:
 		for path in paths:
 			print(path)
-
 
 def sample_paths(filename, options):
 	"""
