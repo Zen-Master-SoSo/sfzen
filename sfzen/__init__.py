@@ -1,4 +1,5 @@
 # pylint: disable = too-many-lines
+#
 #  sfzen/__init__.py
 #
 #  Copyright 2024-2026 Leon Dionne <ldionne@dridesign.sh.cn>
@@ -611,7 +612,7 @@ class Element:
 			element = element._parent	# pylint: disable = protected-access
 		return element if isinstance(element, SFZ) else None
 
-	def _str(self, subclass_string):
+	def _str_cmt(self, subclass_string):
 		return f'{subclass_string} {self.comment.string}' \
 			if self.comment else subclass_string
 
@@ -777,12 +778,32 @@ class Header(Element):
 
 		Returns the appended element.
 		"""
+		self._elements.append(self._check_element(element))
+		return element
+
+	def insert(self, element, index):
+		"""
+		Insert an Element (Opcode, Header, Comment) into this Header at the given index.
+
+		Returns the inserted element.
+		"""
+		self._elements.insert(index, self._check_element(element))
+		return element
+
+	def _check_element(self, element):
+		"""
+		Check that the element being appended or inserted is valid, set its parent, and
+		add to this Header's _opcodes dict if appropriate.
+
+		Returns the element.
+		"""
 		if isinstance(element, Opcode):
 			self._opcodes[element.name] = element
-		elif isinstance(element, Header) and not self.may_contain(element):
-			raise ValueError(f'A "{self.__class__}" header ' + \
-				f'may not contain a "{element.__class__}" subheader')
-		self._elements.append(element)
+		elif isinstance(element, Header) \
+			and not isinstance(element, Include) \
+			and not self.may_contain(element):
+			raise ValueError(f'A "{self.__class__.__name__}" header ' + \
+				f'may not contain a "{element.__class__.__name__}" subheader')
 		element.parent = self
 		return element
 
@@ -1168,7 +1189,7 @@ class Header(Element):
 		string = f'<{self.__class__.__name__.lower()}>'
 		if self.comment and linesep in self.comment.string:
 			return string + linesep + self.comment.string
-		return self._str(string)
+		return self._str_cmt(string)
 
 	def __repr__(self):
 		return f'<{self.__class__.__name__} ({len(self._opcodes):d} opcodes)>'
@@ -1263,6 +1284,7 @@ class SFZ(Header, ExternalFile):
 				logging.error('Unhandled token: %s', match)
 		self.errors = [ error for error in errors if not error is None ]
 
+	@property
 	def name(self):
 		"""
 		Returns (str) the filename of the parsed or last saved SFZ without the
@@ -1277,8 +1299,8 @@ class SFZ(Header, ExternalFile):
 		"""
 		return None if self.path is None else str(self.path)
 
-	def may_contain(self, _):
-		return True
+	def may_contain(self, header):
+		return not isinstance(header, SFZ)
 
 	def global_header(self):
 		"""
@@ -1443,8 +1465,8 @@ class Global(Header):
 	Represents an SFZ Global header.
 	"""
 
-	def may_contain(self, _):
-		return True
+	def may_contain(self, header):
+		return not isinstance(header, (SFZ, Global))
 
 
 class Master(Header):
@@ -1453,7 +1475,7 @@ class Master(Header):
 	"""
 
 	def may_contain(self, header):
-		return type(header) not in [Global, Master]
+		return not isinstance(header, (SFZ, Global, Master))
 
 
 class Group(Header):
@@ -1462,7 +1484,7 @@ class Group(Header):
 	"""
 
 	def may_contain(self, header):
-		return type(header) not in [Global, Master, Group]
+		return not isinstance(header, (SFZ, Global, Master, Group))
 
 
 class Region(Header):
@@ -1474,7 +1496,7 @@ class Region(Header):
 		"""
 		Used during parsing to determine where to append a newly parsed Header
 		"""
-		return type(header) not in [Global, Master, Group, Region]
+		return not isinstance(header, (SFZ, Global, Master, Group, Region))
 
 	def is_triggered_by(self, *, key = None, lokey = None, hikey = None, lovel = None, hivel = None):
 		"""
@@ -1537,7 +1559,7 @@ class Curve(Header):
 	points = {}
 
 	def __str__(self):
-		return self._str(f'<curve>curve_index={self.curve_index}')
+		return self._str_cmt(f'<curve>curve_index={self.curve_index}')
 
 	def write(self, stream):
 		"""
@@ -1657,7 +1679,7 @@ class Opcode(Element):
 		return opcode_definition(self._name)
 
 	def __str__(self):
-		return self._str(f'{self._name}={self._value}')
+		return self._str_cmt(f'{self._name}={self._value}')
 
 	def __repr__(self):
 		return f'<{self.__class__.__name__} {self}>'
@@ -1795,6 +1817,10 @@ class Define(Element):
 		self.varname = varname
 		self.value = value
 
+	@property
+	def name(self):
+		return '#define'
+
 	def clone(self):
 		"""
 		Returns a copy of this Define.
@@ -1802,7 +1828,7 @@ class Define(Element):
 		return Define(self.varname, self.value, comment = self.comment)
 
 	def __str__(self):
-		return self._str(f'#define ${self.varname} {self.value}')
+		return self._str_cmt(f'#define ${self.varname} {self.value}')
 
 
 class Include(SFZ):
@@ -1818,6 +1844,10 @@ class Include(SFZ):
 		ExternalFile.__init__(self, value, **kwargs)
 		if self.exists():
 			self._parse()
+
+	@property
+	def name(self):
+		return '#include'
 
 	@Element.parent.setter
 	def parent(self, parent):
@@ -1842,7 +1872,7 @@ class Include(SFZ):
 		return Include(self.path, comment = self.comment)
 
 	def __str__(self):
-		return self._str(f'#include "{self.path}"')
+		return self._str_cmt(f'#include "{self.path}"')
 
 	def write(self, stream):
 		"""

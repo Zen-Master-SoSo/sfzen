@@ -1,4 +1,5 @@
 # pylint: disable = unspecified-encoding
+#
 #  sfzen/utils/compile_syntax.py
 #
 #  Copyright 2024-2026 Leon Dionne <ldionne@dridesign.sh.cn>
