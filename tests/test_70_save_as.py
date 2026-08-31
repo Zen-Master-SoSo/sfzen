@@ -97,21 +97,21 @@ def test_samples_content(good_sfzs):
 
 def test_merge_includes(good_sfz_paths):
 	def inherited_element_count(header):
-		return sum(len(element.elements) \
-			for element, _ in header.walk() \
-			if isinstance(element, Header))
+		return len(list(element for element, _ in header.walk()
+			if not isinstance(element, Header)))
 	for title in [
 		'SFZ with included region, samples beneath',
 		'SFZ with included region, samples astride'
 	]:
 		sfz = SFZ(specific_sfz_path(good_sfz_paths, title))
 		element_count = inherited_element_count(sfz)
+		sample_count = len(list(sfz.samples()))
 		src_filenames = [ str(sample.abspath) for sample in sfz.samples() ]
 		sfz.merge_includes()
-		assert element_count > inherited_element_count(sfz)
+		assert inherited_element_count(sfz) == element_count
+		assert len(list(sfz.samples())) == sample_count
 		for src_filename, dest_sample in zip(src_filenames, sfz.samples()):
 			assert src_filename == str(dest_sample.abspath)
-
 
 def test_samples_abspath(tmp_path):
 	def _test(src_filename, dest_sample):

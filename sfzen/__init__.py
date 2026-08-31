@@ -633,7 +633,7 @@ class Element:
 
 class ExternalFile:
 	"""
-	Abstract class inherited by Sample and Include, which handles file path
+	Abstract class inherited by Sample, Include, and SFZ, which handles file path
 	resolution and manipulation.
 	"""
 
@@ -696,7 +696,7 @@ class ExternalFile:
 		# pylint: disable-next = attribute-defined-outside-init, no-member
 		self.error = None if self.exists() \
 			else NotFoundError(
-				type(self).__name__,
+				type(self).__name__.lower(),
 				self.abspath,
 				self.match)	# pylint: disable = no-member
 
@@ -1172,13 +1172,12 @@ class Header(Element):
 		while continue_merging:
 			continue_merging = False
 			for index, element in enumerate(self._elements):
-				if isinstance(element, Header):
+				if isinstance(element, Include):
 					subelements = element.merge_includes()
-					if isinstance(element, Include):
-						self._elements = self._elements[:index] + \
-							subelements + \
-							self._elements[index + 1:]
-						continue_merging = True
+					self._elements = self._elements[:index] + \
+						subelements + \
+						self._elements[index + 1:]
+					continue_merging = True
 		self._opcodes = {
 			element.name: element \
 			for element in self._elements \
@@ -1350,31 +1349,29 @@ class SFZ(Header, ExternalFile):
 		"<sfz name>-samples", where "<sfz name>" is the file title of the new SFZ being
 		saved, minus the extension.
 		"""
-		new_path = os_any_path(filename)
-		if new_path.suffix != '.sfz':
-			new_path = new_path.with_suffix('.sfz')
+		new_path = Path(filename).with_suffix('.sfz')
 		if not overwrite and new_path.exists():
 			raise RuntimeError(f'File exists: "{new_path}"')
 		sfz_dir = new_path.parent
-		if not sfz_dir.exists():
-			sfz_dir.mkdir()
+		sfz_dir.mkdir(exist_ok = True)
 		self.merge_includes()
 		if samples_mode & SAMPLE_TARGET_CHANGES:
 			samples_dir = sfz_dir.joinpath(new_path.stem + '-samples')
-			if not samples_dir.exists():
-				samples_dir.mkdir()
+			samples_dir.mkdir(exist_ok = True)
 		if samples_mode:
 			for sample in self.samples():
+				if not sample.exists():
+					logging.warning('SFZ.save_as: source sample is missing: [%s]', sample.path)
 				if samples_mode == SAMPLES_ABSPATH:
 					sample.make_absolute()
 				elif samples_mode == SAMPLES_RELPATH:
 					sample.make_relative(sfz_dir)
 				elif samples_mode == SAMPLES_COPY:
-					sample.copy_to(samples_dir, overwrite)
+					sample.copy_to(sfz_dir, samples_dir, overwrite)
 				elif samples_mode == SAMPLES_SYMLINK:
-					sample.symlink_to(samples_dir, overwrite)
+					sample.symlink_to(sfz_dir, samples_dir, overwrite)
 				elif samples_mode == SAMPLES_HARDLINK:
-					sample.hardlink_to(samples_dir, overwrite)
+					sample.hardlink_to(sfz_dir, samples_dir, overwrite)
 		for header, _ in self.header_walk():
 			header.remove_opcode('default_path')
 		self.path = Path(filename)
@@ -1696,7 +1693,7 @@ class Sample(Opcode, ExternalFile):
 		should be the path to the sample as it appears in the SFZ.
 		"""
 		ExternalFile.__init__(self, value, **kwargs)
-		Opcode.__init__(self, name, value, **kwargs)
+		Opcode.__init__(self, 'sample', value, **kwargs)
 
 	def clone(self):
 		"""
@@ -1729,7 +1726,7 @@ class Sample(Opcode, ExternalFile):
 		self._value = relpath(self.abspath, sfz_dir.absolute())
 		self.path = self._value
 
-	def copy_to(self, samples_dir, overwrite):
+	def copy_to(self, sfz_dir, samples_dir, overwrite):
 		"""
 		Copy the sample file to a new location and update the "value" of this sample to
 		a path relative to the new sfz path.
@@ -1738,20 +1735,9 @@ class Sample(Opcode, ExternalFile):
 		"""
 		new_path = self._new_target(samples_dir, overwrite)
 		copyfile(self.abspath, new_path)
-		self._update_path(samples_dir, new_path)
+		self._update_path(sfz_dir, new_path)
 
-	def move_to(self, samples_dir, overwrite):
-		"""
-		Move the sample file to a new location and update the "value" of this sample to
-		a path relative to the new sfz path.
-
-		"samples_dir" is a Path to the directory where the samples are to be written.
-		"""
-		new_path = self._new_target(samples_dir, overwrite)
-		move(self.abspath, new_path)
-		self._update_path(samples_dir, new_path)
-
-	def symlink_to(self, samples_dir, overwrite):
+	def symlink_to(self, sfz_dir, samples_dir, overwrite):
 		"""
 		Create a symlink to the original sample inside a new samples directory,
 		relative to the new sfz path.
@@ -1760,9 +1746,9 @@ class Sample(Opcode, ExternalFile):
 		"""
 		new_path = self._new_target(samples_dir, overwrite)
 		new_path.symlink_to(self.abspath)
-		self._update_path(samples_dir, new_path)
+		self._update_path(sfz_dir, new_path)
 
-	def hardlink_to(self, samples_dir, overwrite):
+	def hardlink_to(self, sfz_dir, samples_dir, overwrite):
 		"""
 		Create a hardlink to the original sample inside a new samples directory,
 		relative to the new sfz path.
@@ -1774,7 +1760,7 @@ class Sample(Opcode, ExternalFile):
 			new_path.hardlink_to(self.abspath)
 		else:
 			self.abspath.link_to(new_path)
-		self._update_path(samples_dir, new_path)
+		self._update_path(sfz_dir, new_path)
 
 	def _new_target(self, samples_dir, overwrite):
 		"""
@@ -1788,11 +1774,11 @@ class Sample(Opcode, ExternalFile):
 				raise RuntimeError(f'File exists: "{new_path}"')
 		return new_path
 
-	def _update_path(self, samples_dir, new_path):
+	def _update_path(self, sfz_dir, new_path):
 		"""
 		Updates this Sample's "path" attribute after a copy/move/symlink/hardlink.
 		"""
-		self._path = new_path.relative_to(samples_dir.parent)
+		self._path = new_path.relative_to(sfz_dir)
 		self._given_value = str(self.path)
 		self._value = self._given_value
 		self._check()
@@ -2197,7 +2183,7 @@ class NotFoundError(ValidationError):
 		"""
 		self.opcode_name = opcode_name
 		super().__init__(match,
-			f'Referenced "{opcode_name}" [{value}] not found')
+			f'Referenced {opcode_name} [{value}] not found')
 
 
 class InvalidOpcodeError(ValidationError):
