@@ -21,7 +21,7 @@ dependencies = [
 [project.optional-dependencies]
 devel = [
 	"pytest",
-	"repr_soso >= 1.0.0",
+	"repr_soso >= 1.0.2",
 	"yaml"
 ]
 
