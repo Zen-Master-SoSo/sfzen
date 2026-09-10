@@ -1913,11 +1913,11 @@ class Validator:
 	def __init__(self, opcode_name, value_def):
 		self.opcode_name = opcode_name
 		self.value_def = value_def
-		if self.value_def[K_VAR_TYPE] == 'str':
+		if self.type_str == 'str':
 			self._check_type = self.__check_str
-		elif self.value_def[K_VAR_TYPE] == 'int':
+		elif self.type_str == 'int':
 			self._check_type = self.__check_int
-		elif self.value_def[K_VAR_TYPE] == 'float':
+		elif self.type_str == 'float' or type(self) in (MinValidator, RangeValidator):
 			self._check_type = self.__check_float
 
 	# pylint: disable-next = method-hidden
@@ -1925,22 +1925,24 @@ class Validator:
 		"""
 		Checks and coerces a value and returns a tuple containing:
 			The value coerced to the correct var type,
-			Any validation error, or None if no error
+			A ValidationError, or None if no error
 
 		This function is replaced by one of the "_check_<var_type>" funcs when
-		appropriate for the given opcode.
+		appropriate for the given opcode. This particular implementation used when the
+		declared variable type is "None".
 		"""
 		return value, None
 
 	def __check_str(self, value, _):
 		"""
-		Validates returns the value coerced to str.
+		Returns the value coerced to str, and no ValidationError
 		"""
 		return str(value), None
 
 	def __check_int(self, value, match):
 		"""
-		Validates an int and returns the value coerced to int.
+		Validates and coerces to int.
+		Returns (coerced value, ValidationError or None).
 		"""
 		if isinstance(value, int):
 			return value, None
@@ -1950,7 +1952,8 @@ class Validator:
 
 	def __check_float(self, value, match):
 		"""
-		Validates a float and returns the value coerced to float.
+		Validates and coerces to float.
+		Returns (coerced value, ValidationError or None).
 		"""
 		try:
 			return float(value), None
@@ -1958,11 +1961,18 @@ class Validator:
 			return value, DataTypeError(self.opcode_name, value, match)
 
 	def _type_class(self):
-		if self.value_def[K_VAR_TYPE] == 'int':
+		if self.type_str == 'int':
 			return int
-		if self.value_def[K_VAR_TYPE] == 'float':
+		if self.type_str == 'float' or type(self) in (MinValidator, RangeValidator):
 			return float
 		return str
+
+	def range_type(self):
+		"""
+		Returns the type to coerce min / max values to.
+		Will always be either an int or a float.
+		"""
+		return int if self.type_str == 'int' else float
 
 	@property
 	def default_value(self):
@@ -2040,9 +2050,7 @@ class MinValidator(Validator):
 
 	def __init__(self, opcode_name, value_def):
 		super().__init__(opcode_name, value_def)
-		type_ = self._type_class()
-		if not isinstance(type_, (float, int)):
-			type_ = float
+		type_ = self.range_type()
 		self.min = type_(value_def[K_MIN])
 
 	def check_value(self, value, match):
@@ -2061,9 +2069,7 @@ class RangeValidator(Validator):
 
 	def __init__(self, opcode_name, value_def):
 		super().__init__(opcode_name, value_def)
-		type_ = self._type_class()
-		if not isinstance(type_, (float, int)):
-			type_ = float
+		type_ = self.range_type()
 		self.min = type_(value_def[K_MIN])
 		self.max = type_(value_def[K_MAX])
 
